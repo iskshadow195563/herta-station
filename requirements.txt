@@ -1,0 +1,4 @@
+pywebview>=6.0
+# pythonnet + clr_loader come with pywebview on Windows (WebView2 backend)
+pyinstaller>=6.10
+pillow>=10.0

@@ -1,0 +1,461 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HERTA SPACE STATION // 本地推理終端</title>
+<style>
+  :root{
+    --bg:#05070f;
+    --panel:linear-gradient(158deg, rgba(20,28,52,.86), rgba(7,10,20,.94));
+    --line:rgba(111,242,255,.18);
+    --line-strong:rgba(111,242,255,.42);
+    --cyan:#6ff2ff;
+    --violet:#a77bff;
+    --gold:#ffd27a;
+    --ok:#5cf2c0;
+    --warn:#ffb457;
+    --err:#ff6b8a;
+    --dim:rgba(198,220,255,.45);
+    --text:#dbe9ff;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;height:100vh;display:flex;flex-direction:column;overflow:hidden;
+    padding:16px 22px 10px;
+    background:
+      radial-gradient(1100px 620px at 12% -8%, #16204a 0%, rgba(9,13,28,0) 62%),
+      radial-gradient(900px 520px at 92% 108%, #2a1745 0%, rgba(9,13,28,0) 60%),
+      var(--bg);
+    color:var(--text);
+    font-family:"Segoe UI","Microsoft JhengHei UI","Microsoft YaHei",system-ui,sans-serif;
+  }
+  #stars{position:fixed;inset:0;z-index:0;opacity:.7;pointer-events:none}
+  .grid-overlay{
+    position:fixed;inset:0;z-index:0;pointer-events:none;
+    background-image:
+      linear-gradient(rgba(111,242,255,.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(111,242,255,.045) 1px, transparent 1px);
+    background-size:64px 64px;
+    mask-image:radial-gradient(circle at 50% 40%, #000 22%, transparent 80%);
+    -webkit-mask-image:radial-gradient(circle at 50% 40%, #000 22%, transparent 80%);
+  }
+  .vignette{position:fixed;inset:0;z-index:0;pointer-events:none;
+    background:radial-gradient(circle at 50% 45%, transparent 58%, rgba(0,0,0,.5) 100%);}
+  .mono{font-family:"Cascadia Mono",Consolas,"Courier New",monospace}
+
+  header{
+    position:relative;z-index:2;flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;
+    gap:18px;padding-bottom:12px;margin-bottom:14px;border-bottom:1px solid var(--line);
+  }
+  .brand{display:flex;align-items:center;gap:14px}
+  .sigil{
+    width:44px;height:44px;display:grid;place-items:center;border:1px solid var(--line-strong);
+    clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);
+    background:linear-gradient(160deg, rgba(111,242,255,.12), rgba(167,123,255,.06));
+    box-shadow:0 0 22px rgba(111,242,255,.16) inset;
+  }
+  .sigil svg{width:23px;height:23px;animation:spin 14s linear infinite}
+  h1{margin:0;font-size:18px;font-weight:600;letter-spacing:.32em;color:#eef7ff;text-shadow:0 0 18px rgba(111,242,255,.32)}
+  .brand p{margin:4px 0 0;font-size:10.5px;letter-spacing:.16em;color:var(--dim)}
+  .brand .sep{color:var(--line-strong)}
+  .headmeta{display:flex;align-items:center;gap:14px}
+  .chip{
+    display:flex;align-items:center;gap:8px;padding:7px 13px;font-size:10.5px;letter-spacing:.2em;
+    border:1px solid var(--line);background:rgba(8,14,28,.6);
+    clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px);
+  }
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--dim);box-shadow:0 0 10px currentColor;color:var(--dim)}
+  .chip.on .dot{background:var(--ok);color:var(--ok);animation:pulse 1.6s ease-in-out infinite}
+  .chip.load .dot{background:var(--warn);color:var(--warn);animation:pulse .8s ease-in-out infinite}
+  .badge{
+    font-size:9.5px;letter-spacing:.18em;padding:5px 10px;color:var(--cyan);
+    border:1px solid rgba(111,242,255,.3);background:rgba(111,242,255,.06);
+  }
+
+  main{
+    position:relative;z-index:2;flex:1 1 auto;min-height:0;
+    display:grid;grid-template-columns:398px minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);gap:14px;
+  }
+  .panel{
+    position:relative;min-height:0;background:var(--panel);border:1px solid var(--line);padding:14px 16px;
+    clip-path:polygon(16px 0,100% 0,100% calc(100% - 16px),calc(100% - 16px) 100%,0 100%,0 16px);
+  }
+  .panel::before,.panel::after{content:"";position:absolute;width:16px;height:1px;background:var(--line-strong)}
+  .panel::before{top:0;left:16px}
+  .panel::after{bottom:0;right:16px}
+  .panel-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px;flex:0 0 auto}
+  .tag{display:flex;align-items:center;gap:8px;font-size:11.5px;letter-spacing:.3em;color:#eaf6ff}
+  .tag::before{content:"";width:6px;height:13px;background:var(--cyan);box-shadow:0 0 12px var(--cyan)}
+  .panel-head .mono{font-size:9.5px;letter-spacing:.2em;color:var(--dim)}
+
+  /* ---------- reactor ---------- */
+  .core{grid-row:1 / span 2;display:flex;flex-direction:column}
+  .reactor{position:relative;flex:1 1 auto;min-height:0;display:grid;place-items:center;overflow:hidden}
+  .reactor svg{position:absolute;inset:0;width:100%;height:100%}
+  .ring{fill:none;stroke:rgba(111,242,255,.26);transform-origin:50% 50%}
+  .ring.thin{stroke:rgba(111,242,255,.14)}
+  .ring.dash{stroke-dasharray:2 9;stroke:rgba(111,242,255,.55)}
+  .ring.arc{stroke-dasharray:130 250;stroke:var(--cyan);stroke-width:2.2;opacity:.6}
+  .ring.arc2{stroke-dasharray:64 300;stroke:var(--violet);stroke-width:2.2;opacity:.55}
+  .r1{animation:spin 46s linear infinite}
+  .r2{animation:spin 26s linear reverse infinite}
+  .r3{animation:spin 18s linear infinite}
+  .hex{fill:url(#hexFill);stroke:rgba(111,242,255,.5);stroke-width:1.2}
+  .core-label{position:relative;z-index:2;text-align:center}
+  .core-label .state{font-size:25px;letter-spacing:.22em;line-height:1.2;color:#eaf7ff;text-shadow:0 0 20px rgba(111,242,255,.45)}
+  .core-label .sub{margin-top:7px;font-size:9.5px;letter-spacing:.22em;color:var(--dim)}
+  .core-label .tick{margin-top:5px;font-size:9.5px;letter-spacing:.2em;color:var(--warn);height:11px}
+
+  .phase-loading .ring.arc,.phase-loading .ring.arc2{stroke:var(--warn);opacity:.95}
+  .phase-loading .r1{animation-duration:6s}
+  .phase-loading .r2{animation-duration:4s}
+  .phase-loading .r3{animation-duration:3s}
+  .phase-running .ring.arc{stroke:var(--ok);opacity:.95}
+  .phase-running .ring.arc2{stroke:var(--violet);opacity:.9}
+  .phase-running .hex{stroke:var(--ok);filter:drop-shadow(0 0 10px rgba(92,242,192,.55))}
+  .phase-running .r1{animation-duration:22s}
+  .phase-running .r2{animation-duration:12s}
+  .phase-running .r3{animation-duration:9s}
+  .phase-running .core-label .state{color:#eafff8;text-shadow:0 0 26px rgba(92,242,192,.6)}
+
+  .controls{flex:0 0 auto;display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:8px}
+  .btn{
+    padding:11px 8px;font-size:12px;letter-spacing:.2em;cursor:pointer;color:#dff4ff;
+    background:rgba(10,18,34,.85);border:1px solid var(--line-strong);font-family:inherit;
+    clip-path:polygon(12px 0,100% 0,100% calc(100% - 12px),calc(100% - 12px) 100%,0 100%,0 12px);
+    transition:.18s ease;
+  }
+  .btn:hover:not(:disabled){background:rgba(20,40,64,.95);box-shadow:0 0 18px rgba(111,242,255,.26);transform:translateY(-1px)}
+  .btn:disabled{opacity:.3;cursor:not-allowed}
+  .btn.primary{background:linear-gradient(120deg, rgba(111,242,255,.22), rgba(167,123,255,.14));border-color:rgba(111,242,255,.55);color:#f2fdff}
+  .btn.danger{border-color:rgba(255,107,138,.45);color:#ffd9e2}
+  .btn.danger:hover:not(:disabled){background:rgba(255,107,138,.18);box-shadow:0 0 18px rgba(255,107,138,.28)}
+  .btn.ghost{font-size:11px;letter-spacing:.16em;color:#c3d8f2}
+  .hint{margin-top:10px;font-size:10px;letter-spacing:.06em;color:var(--dim);display:flex;justify-content:space-between;gap:8px}
+  .hint b{color:var(--cyan);font-weight:500}
+
+  /* ---------- telemetry ---------- */
+  .rows{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 24px}
+  .row{display:flex;align-items:baseline;justify-content:space-between;gap:10px;padding:6px 0;
+       border-bottom:1px dashed rgba(111,242,255,.1)}
+  .row .k{font-size:10px;letter-spacing:.2em;color:var(--dim);white-space:nowrap}
+  .row .v{font-size:12px;color:#eaf7ff;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .row .v.mono{font-size:11px}
+  .vram{margin-top:10px}
+  .vram .bar{position:relative;height:11px;border:1px solid var(--line);background:rgba(0,0,0,.5);overflow:hidden}
+  .vram .fill{height:100%;width:0%;transition:width .6s ease;
+    background:linear-gradient(90deg,#3ad7ff,#a77bff 65%,#ffd27a);box-shadow:0 0 16px rgba(111,242,255,.45)}
+  .vram .ticks{position:absolute;inset:0;background-image:repeating-linear-gradient(90deg,transparent 0 23px,rgba(5,7,15,.8) 23px 24px)}
+  .vram .legend{display:flex;justify-content:space-between;margin-top:5px;font-size:10px;letter-spacing:.14em;color:var(--dim)}
+  .vram .legend b{color:#eaf7ff;font-weight:500}
+  .lanrow{display:flex;align-items:center;gap:10px;margin-top:8px;font-size:10.5px;letter-spacing:.06em;color:#bfe6ff}
+  .lanrow .lanlabel{color:var(--cyan);letter-spacing:.2em}
+  .keybadge{margin-left:auto;font-size:9px;letter-spacing:.14em;padding:2px 7px;border:1px solid var(--line)}
+  .keybadge.on{color:var(--ok);border-color:rgba(92,242,192,.45);background:rgba(92,242,192,.08)}
+  .keybadge.warn{color:var(--gold);border-color:rgba(255,210,122,.4);background:rgba(255,210,122,.07)}
+
+  /* ---------- log ---------- */
+  .log-panel{display:flex;flex-direction:column}
+  .log{
+    flex:1 1 auto;min-height:60px;margin:0;padding:10px 13px;overflow:auto;
+    background:rgba(2,5,12,.75);border:1px solid rgba(111,242,255,.1);
+    font-family:"Cascadia Mono",Consolas,"Courier New",monospace;font-size:11px;line-height:1.5;
+    color:#9fe8ff;white-space:pre-wrap;word-break:break-word;box-shadow:inset 0 0 40px rgba(111,242,255,.05);
+  }
+  .log .w{color:var(--warn)}
+  .log .e{color:var(--err)}
+  .log .ok{color:var(--ok)}
+  .log::-webkit-scrollbar{width:8px}
+  .log::-webkit-scrollbar-thumb{background:rgba(111,242,255,.2);border-radius:8px}
+  .log::-webkit-scrollbar-track{background:transparent}
+
+  footer{
+    position:relative;z-index:2;flex:0 0 auto;margin-top:12px;padding-top:9px;border-top:1px solid var(--line);
+    display:flex;justify-content:space-between;gap:16px;font-size:10px;letter-spacing:.14em;color:var(--dim);
+  }
+  footer .quote::before{content:"「";color:var(--cyan)}
+  footer .quote::after{content:"」";color:var(--cyan)}
+
+  .toast{
+    position:fixed;right:24px;bottom:22px;z-index:9;max-width:460px;padding:11px 15px;
+    font-size:11.5px;letter-spacing:.06em;
+    background:linear-gradient(140deg, rgba(16,26,46,.96), rgba(8,12,24,.98));
+    border:1px solid var(--line-strong);
+    clip-path:polygon(14px 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%,0 14px);
+    box-shadow:0 0 30px rgba(0,0,0,.6), 0 0 18px rgba(111,242,255,.18);
+    opacity:0;transform:translateY(10px);transition:.25s ease;pointer-events:none;
+  }
+  .toast.show{opacity:1;transform:translateY(0)}
+  .toast.bad{border-color:rgba(255,107,138,.6);box-shadow:0 0 24px rgba(255,107,138,.22)}
+
+  @keyframes spin{to{transform:rotate(360deg)}}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+  @media (max-width:1040px){
+    body{height:auto;overflow:auto}
+    main{grid-template-columns:1fr;grid-template-rows:auto auto 320px}
+    .core{grid-row:auto}
+    .reactor{min-height:260px}
+  }
+</style>
+</head>
+<body>
+<canvas id="stars"></canvas>
+<div class="grid-overlay"></div>
+<div class="vignette"></div>
+
+<header>
+  <div class="brand">
+    <div class="sigil">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#6ff2ff" stroke-width="1.4">
+        <path d="M12 2 21 7v10l-9 5-9-5V7z"/>
+        <path d="M12 7 17 9.7v5.6L12 18l-5-2.7V9.7z"/>
+      </svg>
+    </div>
+    <div>
+      <h1>HERTA SPACE STATION</h1>
+      <p>模擬宇宙 · 本地推理終端 <span class="sep">/</span> QWEN3.8-27B · UD-Q3_K_XL</p>
+    </div>
+  </div>
+  <div class="headmeta">
+    <span class="badge mono">OPENAI-COMPATIBLE · /v1</span>
+    <div class="chip" id="chipConn"><i class="dot"></i><span id="connText">LINK STANDBY</span></div>
+    <div class="mono" style="font-size:9.5px;letter-spacing:.2em;">SECTOR 0 · No.007</div>
+  </div>
+</header>
+
+<main>
+  <section class="panel core phase-idle" id="corePanel">
+    <div class="panel-head"><span class="tag">核心</span><span class="mono">CORE · REACTOR</span></div>
+
+    <div class="reactor" id="reactor">
+      <svg viewBox="0 0 300 300" preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <radialGradient id="haloGrad">
+            <stop offset="0%" stop-color="#6ff2ff" stop-opacity=".22"/>
+            <stop offset="72%" stop-color="#6ff2ff" stop-opacity=".03"/>
+            <stop offset="100%" stop-color="#6ff2ff" stop-opacity="0"/>
+          </radialGradient>
+          <linearGradient id="hexFill" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="rgba(111,242,255,.16)"/>
+            <stop offset="100%" stop-color="rgba(167,123,255,.10)"/>
+          </linearGradient>
+        </defs>
+        <circle cx="150" cy="150" r="148" fill="url(#haloGrad)"/>
+        <g class="r1"><circle class="ring thin" cx="150" cy="150" r="136"/><circle class="ring dash" cx="150" cy="150" r="136"/></g>
+        <g class="r2"><circle class="ring arc" cx="150" cy="150" r="112"/><circle class="ring thin" cx="150" cy="150" r="100"/></g>
+        <g class="r3"><circle class="ring arc2" cx="150" cy="150" r="86"/></g>
+        <path class="hex" d="M150 100 195 126v52l-45 26-45-26v-52z"/>
+        <path class="hex" d="M150 118 178 134v32l-28 16-28-16v-32z" opacity=".75"/>
+      </svg>
+      <div class="core-label">
+        <div class="state" id="stateText">待機</div>
+        <div class="sub mono" id="stateSub">IDLE // VRAM RELEASED</div>
+        <div class="tick mono" id="stateTick"></div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button class="btn primary" id="btnStart">啟動模組</button>
+      <button class="btn danger" id="btnStop">停止模組</button>
+      <button class="btn ghost" id="btnPurge">清空顯存</button>
+      <button class="btn ghost" id="btnTest">連線測試</button>
+    </div>
+    <div class="hint mono"><span>AGENT BASE_URL</span><b>http://127.0.0.1:11433/v1</b></div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head"><span class="tag">遙測</span><span class="mono">TELEMETRY</span></div>
+    <div class="rows">
+      <div class="row"><span class="k">模型</span><span class="v mono" id="vModel">—</span></div>
+      <div class="row"><span class="k">量化</span><span class="v mono" id="vQuant">—</span></div>
+      <div class="row"><span class="k">上下文</span><span class="v mono" id="vCtx">—</span></div>
+      <div class="row"><span class="k">GPU 層</span><span class="v mono" id="vNgl">—</span></div>
+      <div class="row"><span class="k">監聽埠</span><span class="v mono" id="vPort">—</span></div>
+      <div class="row"><span class="k">程序 PID</span><span class="v mono" id="vPid">—</span></div>
+      <div class="row"><span class="k">運行時長</span><span class="v mono" id="vUp">—</span></div>
+      <div class="row"><span class="k">吞吐</span><span class="v mono" id="vTps">—</span></div>
+      <div class="row"><span class="k">KV 快取</span><span class="v mono" id="vKv">—</span></div>
+      <div class="row"><span class="k">並行 slot</span><span class="v mono" id="vNp">—</span></div>
+    </div>
+    <div class="vram">
+      <div class="bar"><div class="fill" id="vramFill"></div><div class="ticks"></div></div>
+      <div class="legend"><span>VRAM <b class="mono" id="vramText">—</b></span><span class="mono" id="gpuName">—</span></div>
+    </div>
+    <div class="lanrow mono">
+      <span class="lanlabel">LAN</span>
+      <span id="vLan">—</span>
+      <span class="keybadge" id="keyBadge">—</span>
+    </div>
+  </section>
+
+  <section class="panel log-panel">
+    <div class="panel-head"><span class="tag">日誌</span><span class="mono">HERTA://LLAMA-SERVER.LOG</span></div>
+    <pre class="log" id="log"></pre>
+  </section>
+</main>
+
+<footer>
+  <span class="quote" id="quote">模擬宇宙已就緒，人偶，別讓我等太久。</span>
+  <span class="mono">llama.cpp b11756 · CUDA 13.4 · sm_120 · 僅提供 OpenAI 格式（無 Anthropic /v1/messages）</span>
+</footer>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = id => document.getElementById(id);
+const state = { phase: "idle", loadingSince: 0 };
+
+/* ---------- starfield ---------- */
+(function stars(){
+  const c = $("stars"), ctx = c.getContext("2d");
+  let w, h, pts = [];
+  const resize = () => {
+    w = c.width = innerWidth; h = c.height = innerHeight;
+    pts = Array.from({length: 170}, () => ({
+      x: Math.random()*w, y: Math.random()*h, r: Math.random()*1.3 + .25,
+      s: Math.random()*.12 + .02, a: Math.random()*.55 + .12
+    }));
+  };
+  addEventListener("resize", resize); resize();
+  (function loop(){
+    ctx.clearRect(0,0,w,h);
+    for (const p of pts){
+      p.y += p.s; if (p.y > h) { p.y = -2; p.x = Math.random()*w; }
+      ctx.beginPath();
+      ctx.fillStyle = `rgba(${p.r > 1 ? "180,220,255" : "140,200,255"},${p.a})`;
+      ctx.arc(p.x, p.y, p.r, 0, 6.283);
+      ctx.fill();
+    }
+    requestAnimationFrame(loop);
+  })();
+})();
+
+/* ---------- helpers ---------- */
+let toastTimer;
+function toast(msg, bad){
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.toggle("bad", !!bad);
+  t.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove("show"), 4200);
+}
+const fmtUp = s => {
+  if (s == null) return "—";
+  const h = Math.floor(s/3600), m = Math.floor(s%3600/60), x = s%60;
+  return [h,m,x].map(v => String(v).padStart(2,"0")).join(":");
+};
+const fmtGB = mb => mb == null ? "—" : (mb/1024).toFixed(1) + " GB";
+
+const QUOTES = [
+  "模擬宇宙已就緒，人偶，別讓我等太久。",
+  "這是黑塔的人偶在替你跑推理，記得關掉它。",
+  "推演完就釋放顯存——空間站的資源很寶貴。",
+  "權重載入需要一點耐心，宇宙也是這樣形成的。",
+  "人偶不需要休息，但你的顯示卡需要。",
+  "別讓 27B 的參數在記憶體裡閒著發呆。"
+];
+setInterval(() => { $("quote").textContent = QUOTES[Math.floor(Math.random()*QUOTES.length)]; }, 12000);
+
+/* ---------- render ---------- */
+function paint(s){
+  state.phase = s.phase;
+  const panel = $("corePanel");
+  panel.classList.remove("phase-idle","phase-loading","phase-running");
+  panel.classList.add("phase-" + s.phase);
+
+  const map = {
+    idle:    ["待機", "IDLE // VRAM RELEASED", "LINK STANDBY"],
+    loading: ["載入中", "LOADING WEIGHTS → VRAM", "LINK SYNCING"],
+    running: ["運行中", "ONLINE // SERVING /v1", "LINK ONLINE"]
+  };
+  $("stateText").textContent = map[s.phase][0];
+  $("stateSub").textContent  = map[s.phase][1];
+  $("connText").textContent  = map[s.phase][2];
+
+  const chip = $("chipConn");
+  chip.classList.toggle("on", s.phase === "running");
+  chip.classList.toggle("load", s.phase === "loading");
+
+  if (s.phase === "loading"){
+    if (!state.loadingSince) state.loadingSince = Date.now();
+    $("stateTick").textContent = "T+" + Math.floor((Date.now() - state.loadingSince)/1000) + "s";
+  } else {
+    state.loadingSince = 0;
+    $("stateTick").textContent = "";
+  }
+
+  $("vModel").textContent = s.model || "—";
+  $("vQuant").textContent = s.quant || "—";
+  $("vCtx").textContent = (s.ctx ?? "—") + " tokens";
+  $("vNgl").textContent = s.ngl + " / 99";
+  $("vPort").textContent = (s.bind || s.host) + ":" + s.port;
+  $("vPid").textContent = s.pid ?? "—";
+  $("vUp").textContent = fmtUp(s.uptime);
+  $("vTps").textContent = s.tps ? s.tps.toFixed(1) + " tok/s" : "—";
+  $("vLan").textContent = s.endpoint_lan || "—";
+  const kb = $("keyBadge");
+  kb.textContent = s.api_key ? "API KEY 已啟用" : "無 API KEY";
+  kb.className = "keybadge " + (s.api_key ? "on" : "warn");
+  $("vKv").textContent = (s.ctk || "f16") + " / " + (s.ctv || "f16");
+  $("vNp").textContent = (s.parallel ?? 1) + " × " + (s.ctx ?? "—");
+
+  const v = s.vram || {};
+  const pct = (v.used && v.total) ? Math.min(100, v.used / v.total * 100) : 0;
+  $("vramFill").style.width = pct.toFixed(1) + "%";
+  $("vramText").textContent = `${fmtGB(v.used)} / ${fmtGB(v.total)}  (${pct.toFixed(0)}%)`;
+  $("gpuName").textContent = v.gpu || "—";
+
+  $("btnStart").disabled = s.phase !== "idle";
+  $("btnStop").disabled  = s.phase === "idle";
+  $("btnTest").disabled  = s.phase !== "running";
+
+  const logBox = $("log");
+  const text = (s.log || []).map(line => {
+    let cls = "";
+    if (/\bE\b|error|failed|out of memory/i.test(line)) cls = "e";
+    else if (/\bW\b|warn/i.test(line)) cls = "w";
+    else if (/listening|model loaded|loaded multimodal/i.test(line)) cls = "ok";
+    const safe = line.replace(/[&<>]/g, ch => ({ "&":"&amp;","<":"&lt;",">":"&gt;" }[ch]));
+    return cls ? `<span class="${cls}">${safe}</span>` : safe;
+  }).join("\n");
+  if (logBox.dataset.raw !== text){
+    logBox.dataset.raw = text;
+    logBox.innerHTML = text || "（尚無日誌 · llama-server 未啟動）";
+    logBox.scrollTop = logBox.scrollHeight;
+  }
+}
+
+async function poll(){
+  try {
+    const r = await fetch("/api/status", { cache: "no-store" });
+    paint(await r.json());
+  } catch (e) {
+    $("connText").textContent = "CONSOLE OFFLINE";
+  }
+}
+
+/* ---------- actions ---------- */
+async function act(path){
+  try {
+    const r = await fetch(path, { method: "POST" });
+    const d = await r.json();
+    toast(d.message || (d.ok ? "完成" : "失敗"), !d.ok);
+  } catch (e) {
+    toast("控制台連線失敗：" + e.message, true);
+  }
+  poll();
+}
+
+$("btnStart").onclick = () => { toast("正在載入權重，請稍候…"); act("/api/start"); };
+$("btnStop").onclick  = () => { toast("正在卸載模型並釋放顯存…"); act("/api/stop"); };
+$("btnPurge").onclick = () => { toast("正在清空 Ollama / llama-server 佔用的顯存…"); act("/api/purge"); };
+$("btnTest").onclick  = () => { act("/api/selftest"); };
+
+poll();
+setInterval(poll, 1500);
+</script>
+</body>
+</html>

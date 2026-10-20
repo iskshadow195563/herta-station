@@ -1,0 +1,383 @@
+# -*- coding: utf-8 -*-
+"""Herta Space Station - llama.cpp switchboard.
+
+Small stdlib-only control plane for a local llama-server instance:
+  GET  /              -> the Herta-styled control UI
+  GET  /api/status    -> process / VRAM / CUDA telemetry
+  POST /api/start     -> launch llama-server with the Qwen3.8-27B Q3_K_XL weights
+  POST /api/stop      -> kill the server tree and release VRAM
+  POST /api/purge     -> also unload every Ollama model holding VRAM
+  POST /api/selftest  -> one tiny chat completion against the running server
+"""
+
+import json
+import os
+import re
+import subprocess
+import sys
+import threading
+import time
+import urllib.request
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+# ui.html lives next to the script, or inside the PyInstaller bundle
+RES_DIR = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+# logs / pid must live beside the executable, never inside the temp bundle
+DATA_DIR = os.path.dirname(sys.executable) if getattr(sys, "frozen", False) else RES_DIR
+EXE = os.environ.get("HERTA_LLAMA_EXE", r"D:\llama.cpp\b11756\llama-server.exe")
+MODEL = os.environ.get("HERTA_MODEL", r"D:\ollama-gguf\qwen3.8-27b\Qwen3.8-27B-UD-Q3_K_XL.gguf")
+MMPROJ = os.environ.get("HERTA_MMPROJ_PATH", r"D:\ollama-gguf\qwen3.8-27b\mmproj-F16.gguf")
+ALIAS = os.environ.get("HERTA_ALIAS", "qwen3.8-27b-q3xl")
+HOST = "127.0.0.1"                               # control plane / probes (never exposed)
+BIND = os.environ.get("HERTA_BIND", "0.0.0.0")   # llama-server listen address (LAN reachable)
+API_KEY = os.environ.get("HERTA_API_KEY", "").strip()  # optional bearer token for LAN clients
+PORT = int(os.environ.get("HERTA_PORT", "11433"))
+CTX = int(os.environ.get("HERTA_CTX", "49152"))
+PARALLEL = int(os.environ.get("HERTA_PARALLEL", "1"))
+FA = os.environ.get("HERTA_FA", "on")
+CTK = os.environ.get("HERTA_CTK", "q5_1")   # q5_1 keeps 49k ctx under the 16 GB cliff
+CTV = os.environ.get("HERTA_CTV", "q5_1")
+# the vision projector costs ~0.9 GB; off by default so 49k context fits in 16 GB
+MMPROJ_ON = os.environ.get("HERTA_MMPROJ", "0").lower() in ("1", "on", "true", "yes")
+NGL = 99
+UI_PORT = 8899
+
+LOG_PATH = os.path.join(DATA_DIR, "llama-server.log")
+PID_PATH = os.path.join(DATA_DIR, "llama-server.pid")
+
+NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+_lock = threading.Lock()
+_proc = None
+_started_at = None
+_last_error = ""
+
+
+# --------------------------------------------------------------------------- #
+# helpers
+# --------------------------------------------------------------------------- #
+def _run(args, timeout=15):
+    try:
+        out = subprocess.run(
+            args, capture_output=True, timeout=timeout, creationflags=NO_WINDOW
+        )
+        return out.stdout.decode("utf-8", "replace") + out.stderr.decode("utf-8", "replace")
+    except Exception as exc:  # pragma: no cover
+        return f"{exc}"
+
+
+def _vram():
+    txt = _run([
+        "nvidia-smi",
+        "--query-gpu=memory.used,memory.total,name",
+        "--format=csv,noheader,nounits",
+    ], timeout=8).strip().splitlines()
+    if not txt:
+        return {"used": None, "total": None, "gpu": "n/a"}
+    parts = [p.strip() for p in txt[0].split(",")]
+    try:
+        return {"used": int(parts[0]), "total": int(parts[1]), "gpu": parts[2]}
+    except (ValueError, IndexError):
+        return {"used": None, "total": None, "gpu": "n/a"}
+
+
+def _lan_ip():
+    """Best-effort primary LAN address of this machine."""
+    import socket
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        sock.connect(("8.8.8.8", 80))
+        return sock.getsockname()[0]
+    except Exception:
+        return HOST
+    finally:
+        sock.close()
+
+
+def _auth_headers():
+    return {"Authorization": f"Bearer {API_KEY}"} if API_KEY else {}
+
+
+def _health():
+    try:
+        req = urllib.request.Request(f"http://{HOST}:{PORT}/health", headers=_auth_headers())
+        with urllib.request.urlopen(req, timeout=1.5) as resp:
+            return json.loads(resp.read().decode("utf-8")).get("status") == "ok"
+    except Exception:
+        return False
+
+
+def _port_pid(port=PORT):
+    """Find the PID listening on a local TCP port (Windows netstat)."""
+    out = _run(["netstat", "-ano", "-p", "TCP"], timeout=10)
+    for line in out.splitlines():
+        if f":{port} " in line and "LISTENING" in line.upper():
+            tail = line.split()
+            if tail and tail[-1].isdigit():
+                return int(tail[-1])
+    return None
+
+
+def _tail(n=60):
+    try:
+        with open(LOG_PATH, "r", encoding="utf-8", errors="replace") as fh:
+            lines = fh.readlines()
+        return [ln.rstrip("\r\n") for ln in lines[-n:]]
+    except FileNotFoundError:
+        return []
+
+
+def _tps(lines):
+    """Last tokens/second figure reported by llama.cpp."""
+    for line in reversed(lines):
+        m = re.search(r"([\d.]+)\s+tokens per second", line)
+        if m:
+            return float(m.group(1))
+    return None
+
+
+def _pid():
+    if _proc is not None and _proc.poll() is None:
+        return _proc.pid
+    try:
+        with open(PID_PATH, "r", encoding="utf-8") as fh:
+            pid = int(fh.read().strip())
+        # confirm the pid is still alive
+        _run(["tasklist", "/FI", f"PID eq {pid}"], timeout=8)
+        return pid
+    except Exception:
+        return _port_pid()
+
+
+def _alive():
+    pid = _pid()
+    if not pid:
+        return False
+    out = _run(["tasklist", "/FI", f"PID eq {pid}", "/NH"], timeout=8)
+    return str(pid) in out
+
+
+# --------------------------------------------------------------------------- #
+# actions
+# --------------------------------------------------------------------------- #
+def start_model():
+    global _proc, _started_at, _last_error
+    with _lock:
+        if _health():
+            return {"ok": True, "message": "模型已在運行中"}
+        if _alive():
+            _started_at = _started_at or time.time()
+            return {"ok": True, "message": "載入程序仍在啟動，請稍候"}
+
+        if not os.path.exists(EXE):
+            return {"ok": False, "message": f"找不到 llama-server.exe: {EXE}"}
+        if not os.path.exists(MODEL):
+            return {"ok": False, "message": f"找不到模型權重: {MODEL}"}
+
+        args = [
+            EXE, "-m", MODEL,
+            "-a", ALIAS,
+            "--host", BIND, "--port", str(PORT),
+            "-c", str(CTX), "-ngl", str(NGL),
+            "-np", str(PARALLEL),
+            "-fa", FA,
+            "--jinja",
+        ]
+        if API_KEY:
+            args += ["--api-key", API_KEY]
+        if MMPROJ_ON:
+            args += ["--mmproj", MMPROJ]
+        if CTK:
+            args += ["-ctk", CTK]
+        if CTV:
+            args += ["-ctv", CTV]
+        try:
+            log = open(LOG_PATH, "w", encoding="utf-8", errors="replace")
+            log.write("$ " + " ".join(f'"{a}"' if " " in a else a for a in args) + "\n")
+            log.flush()
+            _proc = subprocess.Popen(
+                args,
+                cwd=os.path.dirname(EXE),
+                stdout=log,
+                stderr=subprocess.STDOUT,
+                creationflags=NO_WINDOW,
+            )
+            _started_at = time.time()
+            with open(PID_PATH, "w", encoding="utf-8") as fh:
+                fh.write(str(_proc.pid))
+            _last_error = ""
+            return {"ok": True, "message": f"已啟動 llama-server (PID {_proc.pid})"}
+        except Exception as exc:
+            _last_error = str(exc)
+            return {"ok": False, "message": f"啟動失敗: {exc}"}
+
+
+def stop_model():
+    global _proc, _started_at
+    with _lock:
+        killed = []
+        if _proc is not None and _proc.poll() is None:
+            _run(["taskkill", "/PID", str(_proc.pid), "/T", "/F"])
+            killed.append(_proc.pid)
+        pid = _port_pid()
+        if pid and pid not in killed:
+            _run(["taskkill", "/PID", str(pid), "/T", "/F"])
+            killed.append(pid)
+        try:
+            os.remove(PID_PATH)
+        except OSError:
+            pass
+        _proc = None
+        _started_at = None
+        time.sleep(0.6)
+        return {"ok": True, "message": f"已停止 {len(killed)} 個程序，顯存已釋放" if killed else "目前沒有運行中的實例"}
+
+
+def purge_all():
+    names = []
+    out = _run(["ollama", "ps"], timeout=20)
+    for line in out.splitlines()[1:]:
+        token = line.split()
+        if token and token[0] not in ("NAME",):
+            names.append(token[0])
+    stopped = []
+    for name in names:
+        _run(["ollama", "stop", name], timeout=40)
+        stopped.append(name)
+    res = stop_model()
+    return {"ok": True, "message": f"已卸載 Ollama: {', '.join(stopped) if stopped else '無'}；{res['message']}"}
+
+
+def selftest():
+    body = json.dumps({
+        "model": ALIAS,
+        "messages": [{"role": "user", "content": "回覆兩個字：在線"}],
+        "max_tokens": 32,
+        "temperature": 0.2,
+        "chat_template_kwargs": {"enable_thinking": False},
+    }).encode("utf-8")
+    req = urllib.request.Request(
+        f"http://{HOST}:{PORT}/v1/chat/completions",
+        data=body,
+        headers={"Content-Type": "application/json", **_auth_headers()},
+    )
+    t0 = time.time()
+    try:
+        with urllib.request.urlopen(req, timeout=180) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        reply = (data["choices"][0]["message"].get("content") or "").strip()
+        return {"ok": True, "message": f"{time.time() - t0:.1f}s · {reply[:60]}"}
+    except Exception as exc:
+        return {"ok": False, "message": f"連線測試失敗: {exc}"}
+
+
+# --------------------------------------------------------------------------- #
+# status
+# --------------------------------------------------------------------------- #
+def status():
+    lines = _tail(60)
+    running = _health()
+    alive = _alive()
+    if running:
+        phase = "running"
+    elif alive:
+        phase = "loading"
+    else:
+        phase = "idle"
+    uptime = None
+    if phase != "idle":
+        base = _started_at
+        if base is None:
+            try:
+                base = os.path.getctime(LOG_PATH)
+            except OSError:
+                base = None
+        if base:
+            uptime = int(time.time() - base)
+    gpu = _vram()
+    lan = _lan_ip()
+    return {
+        "phase": phase,
+        "port": PORT,
+        "host": HOST,
+        "bind": BIND,
+        "lan": lan,
+        "api_key": bool(API_KEY),
+        "alias": ALIAS,
+        "model": os.path.basename(MODEL),
+        "quant": "UD-Q3_K_XL",
+        "ctx": CTX,
+        "ngl": NGL,
+        "ctk": CTK,
+        "ctv": CTV,
+        "parallel": PARALLEL,
+        "pid": _pid() if (running or alive) else None,
+        "uptime": uptime,
+        "tps": _tps(lines),
+        "vram": gpu,
+        "log": lines[-40:],
+        "error": _last_error,
+        "endpoint": f"http://{HOST}:{PORT}/v1",
+        "endpoint_lan": f"http://{lan}:{PORT}/v1",
+    }
+
+
+# --------------------------------------------------------------------------- #
+# http
+# --------------------------------------------------------------------------- #
+class Handler(BaseHTTPRequestHandler):
+    server_version = "HertaConsole/1.0"
+
+    def log_message(self, *_args):
+        pass
+
+    def _send(self, code, payload, ctype="application/json; charset=utf-8"):
+        raw = payload if isinstance(payload, bytes) else json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        self.send_response(code)
+        self.send_header("Content-Type", ctype)
+        self.send_header("Content-Length", str(len(raw)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(raw)
+
+    def do_GET(self):
+        path = self.path.split("?")[0]
+        if path in ("/", "/index.html"):
+            try:
+                with open(os.path.join(RES_DIR, "ui.html"), "rb") as fh:
+                    self._send(200, fh.read(), "text/html; charset=utf-8")
+            except FileNotFoundError:
+                self._send(500, b"ui.html missing", "text/plain; charset=utf-8")
+        elif path == "/api/status":
+            self._send(200, status())
+        else:
+            self._send(404, {"ok": False, "message": "not found"})
+
+    def do_POST(self):
+        path = self.path.split("?")[0]
+        routes = {
+            "/api/start": start_model,
+            "/api/stop": stop_model,
+            "/api/purge": purge_all,
+            "/api/selftest": selftest,
+        }
+        fn = routes.get(path)
+        if not fn:
+            self._send(404, {"ok": False, "message": "not found"})
+            return
+        try:
+            self._send(200, fn())
+        except Exception as exc:
+            self._send(500, {"ok": False, "message": str(exc)})
+
+
+def main():
+    srv = ThreadingHTTPServer((HOST, UI_PORT), Handler)
+    print(f"Herta console -> http://{HOST}:{UI_PORT}")
+    try:
+        srv.serve_forever()
+    except KeyboardInterrupt:
+        pass
+
+
+if __name__ == "__main__":
+    main()

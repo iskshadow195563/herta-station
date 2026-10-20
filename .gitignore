@@ -1,0 +1,23 @@
+# build artifacts
+build/
+dist/
+*.spec
+*.egg-info/
+
+# python
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# runtime state produced by server.py
+llama-server.log
+llama-server.pid
+*.log
+*.pid
+
+# editors / OS
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
