@@ -70,7 +70,7 @@ Click **模型庫 · MODELS** in the header. Three tabs:
 | Tab | What it does |
 | --- | --- |
 | 本機模型 | Scans every `*.gguf` under the models folder (default `<exe dir>\models`, override with `HERTA_MODELS_DIR`) into a table with **separate columns for name, size, parameters, quantisation and VRAM verdict**. **使用** swaps the model and restarts the server (~10–30 s). |
-| Hugging Face 搜尋 | Searches `huggingface.co/api/models?filter=gguf`. **Vendor chips work on their own** — click Qwen/DeepSeek/Llama/Gemma/Mistral/GLM with an empty box and it lists that vendor's GGUF repos by downloads (80 rows); typing a keyword narrows it. Parameter bucket (≤4B, 7–9B, 13–14B, 27–32B, 70B+) and quantisation (Q4–Q8) chips filter the result set. Diffusion / video / TTS repos are filtered out. Each repo expands to its GGUF files with size + fit estimate. |
+| Hugging Face 搜尋 | Searches `huggingface.co/api/models?filter=gguf`. **Vendor chips work on their own** — click Qwen/DeepSeek/Llama/Gemma/Mistral/GLM with an empty box and it lists that vendor's GGUF repos by downloads (80 rows); typing a keyword narrows it. Parameter bucket (≤4B, 7–9B, 13–14B, 27–32B, 70B+) and quantisation (Q4–Q8) chips filter the result set, and a **排序 (Sort)** chip switches the ordering between **星數 (stars/likes)** and **下載量 (downloads)** — the choice is stored in ui.hfSort and survives restarts. Diffusion / video / TTS repos are filtered out. Each repo expands to its GGUF files with size + fit estimate. |
 | 下載 | Live download progress (percent, GB, MB/s), cancel button. A finished download is written to `models/<owner>__<repo>/` and becomes the active model. |
 
 Dropping a `.gguf` in by hand works too — hit **重新整理**.

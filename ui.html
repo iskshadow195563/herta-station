@@ -645,6 +645,7 @@
         <div class="fgroup" id="fProvider"><span class="flabel">廠商</span></div>
         <div class="fgroup" id="fParams"><span class="flabel">參數</span></div>
         <div class="fgroup" id="fQuant"><span class="flabel">量化</span></div>
+        <div class="fgroup" id="fSort"><span class="flabel">排序</span></div>
       </div>
       <div class="mlist" id="hfList"><div class="empty">輸入模型名稱開始搜尋。</div></div>
     </div>
@@ -914,7 +915,7 @@ $("btnTest").onclick  = () => { act("/api/selftest"); };
 
 /* ---------- model library ---------- */
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
-const LIB = { hf: [], filters: { provider: "all", params: "all", quant: "all" }, dlTimer: null, dlDone: false, reco: null };
+const LIB = { hf: [], filters: { provider: "all", params: "all", quant: "all", sort: "downloads" }, dlTimer: null, dlDone: false, reco: null, lastQuery: "" };
 
 const PROVIDERS = [["all","全部"],["Qwen","Qwen"],["DeepSeek","DeepSeek"],["Llama","Llama"],["Gemma","Gemma"],["Mistral","Mistral"],["GLM","GLM"],["其他","其他"]];
 const PARAM_BUCKETS = [["all","全部"],["s","≤4B"],["m","7–9B"],["l","13–14B"],["xl","27–32B"],["xxl","70B+"]];
@@ -1054,7 +1055,8 @@ async function hfSearch(forced) {
   const wide = forced !== undefined;   // provider-wide browse: pull more rows
   $("hfList").innerHTML = `<div class="empty">${t("SEARCHING", { q: esc(q) })}</div>`;
   try {
-    const d = await (await fetch(`/api/hf/search?q=${encodeURIComponent(q)}&limit=${wide ? 80 : 40}`, { cache: "no-store" })).json();
+    LIB.lastQuery = q;
+    const d = await (await fetch(`/api/hf/search?q=${encodeURIComponent(q)}&limit=${wide ? 80 : 40}&sort=${LIB.filters.sort}`, { cache: "no-store" })).json();
     if (!d.ok) { $("hfList").innerHTML = `<div class="empty">搜尋失敗：${esc(d.message)}</div>`; return; }
     LIB.hf = d.items || [];
     if (wide) $("hfQ").value = "";
@@ -1073,6 +1075,8 @@ function renderHf() {
     if (LIB.filters.quant !== "all" && !String(r.id).toUpperCase().includes(LIB.filters.quant)) return false;
     return true;
   });
+  const sortKey = LIB.filters.sort === "likes" ? "likes" : "downloads";
+  list.sort((a, b) => (b[sortKey] || 0) - (a[sortKey] || 0));
   if (!list.length) { $("hfList").innerHTML = '<div class="empty">沒有符合條件的結果，換個關鍵字或放寬篩選。</div>'; return; }
   $("hfList").innerHTML = "";
   list.forEach(repo => {
@@ -1212,23 +1216,20 @@ buildChips("fProvider", PROVIDERS, "provider", (value, label) => {
   }
   hfSearch(keyword);                         // 廠商瀏覽：不需輸入關鍵字
 });
+buildChips("fSort", [["downloads", "下載量"], ["likes", "星數"]], "sort", (value) => {
+  LIB.filters.sort = value;
+  renderHf();
+  if (LIB.lastQuery) hfSearch(LIB.lastQuery);
+  fetch("/api/settings", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ui: { hfSort: value } }),
+  }).catch(() => {});
+});
 buildChips("fParams", PARAM_BUCKETS, "params");
 buildChips("fQuant", QUANT_BUCKETS, "quant");
 
-/* deep links: #models | #models&p=qwen | #models&q=gemma 12b | #settings */
-(function applyHash() {
-  const raw = location.hash.replace(/^#/, "");
-  if (!raw) return;
-  const [view, qs] = raw.split("&");
-  const params = new URLSearchParams(qs || "");
-  if (view === "settings") { openSettings(); return; }
-  if (view !== "models") return;
-  libOpen();
-  const q = params.get("q");
-  const p = params.get("p");
-  if (q) { libTab("search"); $("hfQ").value = q; hfSearch(); return; }
-  if (p) { libTab("search"); selectChip("fProvider", p); }
-})();
+/* deep links are dispatched at the very bottom of this script, once every
+   const (I18N, SET, …) is initialised — running them here hits the TDZ. */
 
 /* ---------- i18n ---------- */
 const LANGS = ["zh-Hant", "zh-Hans", "en"];
@@ -1275,6 +1276,7 @@ const I18N = {
     "模擬宇宙已就緒，人偶，別讓我等太久。": "模拟宇宙已就绪，人偶，别让我等太久。",
     "本機最接近": "本机最接近", "已載入": "已载入", "使用預設值": "使用默认值",
     "語言 / Language": "语言 / Language",
+    "排序": "排序", "下載量": "下载量", "星數": "星数",
     "無 API KEY": "无 API KEY", "API KEY 已啟用": "API KEY 已启用",
     "僅提供 OpenAI 格式（無 Anthropic /v1/messages）": "仅提供 OpenAI 格式（无 Anthropic /v1/messages）",
     "RECO_HW": "{gpu} · {vram} GB 显存 · 上下文 {ctx} · 可用权重 {w} GB",
@@ -1323,6 +1325,7 @@ const I18N = {
     "模擬宇宙已就緒，人偶，別讓我等太久。": "The Simulated Universe is ready. Don't keep me waiting, puppet.",
     "本機最接近": "Closest local", "已載入": "loaded", "使用預設值": "using defaults",
     "語言 / Language": "Language",
+    "排序": "Sort", "下載量": "Downloads", "星數": "Stars",
     "無 API KEY": "NO API KEY", "API KEY 已啟用": "API KEY ON",
     "僅提供 OpenAI 格式（無 Anthropic /v1/messages）": "OpenAI format only (no Anthropic /v1/messages)",
     "RECO_HW": "{gpu} · {vram} GB VRAM · context {ctx} · {w} GB for weights",
@@ -1523,6 +1526,20 @@ $("setReset").onclick = async () => {
   toast("已還原預設值");
 };
 
+function dispatchHash() {
+  const raw = location.hash.replace(/^#/, "");
+  if (!raw) return;
+  const [view, qs] = raw.split("&");
+  const params = new URLSearchParams(qs || "");
+  if (view === "settings") { openSettings(); return; }
+  if (view !== "models") return;
+  libOpen();
+  const q = params.get("q");
+  const p = params.get("p");
+  if (q) { libTab("search"); $("hfQ").value = q; hfSearch(); return; }
+  if (p) { libTab("search"); selectChip("fProvider", p); }
+}
+
 (async () => {
   try {
     const d = await (await fetch("/api/settings", { cache: "no-store" })).json();
@@ -1530,7 +1547,12 @@ $("setReset").onclick = async () => {
     SET.defaults = d.defaults;
     applyUi(d.settings);
     fillSettings(d.settings || {});
+    const savedSort = (d.settings && d.settings.ui && d.settings.ui.hfSort) === "likes" ? "likes" : "downloads";
+    LIB.filters.sort = savedSort;
+    const sortChips = $("fSort").querySelectorAll(".chip2");
+    sortChips.forEach(c2 => c2.classList.toggle("active", c2.dataset.value === savedSort));
   } catch (e) { /* keep CSS defaults */ }
+  dispatchHash();
 })();
 
 poll();

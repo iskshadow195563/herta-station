@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """Model library for Herta Station: local GGUF catalogue, Hugging Face search,
 and a background downloader.
 
@@ -310,16 +310,20 @@ def _get_json(url, timeout=25):
         return json.loads(resp.read().decode("utf-8"))
 
 
-def hf_search(query, limit=30):
+HF_SORTS = {"downloads": "downloads", "likes": "likes", "updated": "lastModified"}
+
+
+def hf_search(query, limit=30, sort="downloads"):
     query = (query or "").strip()
     if not query:
         return []
+    sort = HF_SORTS.get(sort, "downloads")
     qs = urllib.parse.urlencode({
         "search": query,
         "filter": "gguf",
-        "sort": "downloads",
+        "sort": sort,
         "direction": -1,
-        "limit": max(1, min(60, int(limit))),
+        "limit": max(1, min(100, int(limit))),
     })
     data = _get_json(f"https://huggingface.co/api/models?{qs}")
     out = []

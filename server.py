@@ -468,7 +468,8 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/hf/search":
             q = (params.get("q") or [""])[0]
             try:
-                self._send(200, {"ok": True, "items": models.hf_search(q, params.get("limit", ["30"])[0])})
+                self._send(200, {"ok": True, "items": models.hf_search(
+                    q, params.get("limit", ["30"])[0], params.get("sort", ["downloads"])[0])})
             except Exception as exc:
                 self._send(200, {"ok": False, "message": str(exc), "items": []})
         elif path == "/api/hf/files":
