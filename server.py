@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """Herta Space Station - llama.cpp switchboard.
 
 Small stdlib-only control plane for a local llama-server instance:
@@ -71,6 +71,29 @@ def _run(args, timeout=15):
         return out.stdout.decode("utf-8", "replace") + out.stderr.decode("utf-8", "replace")
     except Exception as exc:  # pragma: no cover
         return f"{exc}"
+
+
+_vram_cache = {"at": 0.0, "value": None}
+_lan_cache = {"at": 0.0, "value": ""}
+
+
+def _vram_cached(ttl=2.0):
+    """nvidia-smi costs ~150 ms; the dashboard polls every 1.5 s, so memoise it."""
+    now = time.time()
+    if _vram_cache["value"] is not None and now - _vram_cache["at"] < ttl:
+        return _vram_cache["value"]
+    value = _vram()
+    _vram_cache.update(at=now, value=value)
+    return value
+
+
+def _lan_ip_cached(ttl=60.0):
+    now = time.time()
+    if _lan_cache["value"] and now - _lan_cache["at"] < ttl:
+        return _lan_cache["value"]
+    value = _lan_ip()
+    _lan_cache.update(at=now, value=value)
+    return value
 
 
 def _vram():
@@ -148,20 +171,16 @@ def _pid():
         return _proc.pid
     try:
         with open(PID_PATH, "r", encoding="utf-8") as fh:
-            pid = int(fh.read().strip())
-        # confirm the pid is still alive
-        _run(["tasklist", "/FI", f"PID eq {pid}"], timeout=8)
-        return pid
+            return int(fh.read().strip())
     except Exception:
         return _port_pid()
 
 
 def _alive():
-    pid = _pid()
-    if not pid:
-        return False
-    out = _run(["tasklist", "/FI", f"PID eq {pid}", "/NH"], timeout=8)
-    return str(pid) in out
+    """Cheap liveness check: the child handle first, then the listening port."""
+    if _proc is not None and _proc.poll() is None:
+        return True
+    return _port_pid() is not None
 
 
 # --------------------------------------------------------------------------- #
@@ -335,6 +354,7 @@ def start_anthropic_proxy(restart=False):
 def apply_settings(patch):
     """Persist UI/server preferences and make them the live values."""
     global CONF, CTX, CTK, CTV, PARALLEL, BIND, PORT, API_KEY, NGL
+    before = CONF["server"]
     CONF = appsettings.save(patch or {})
     srv = CONF["server"]
     CTX = srv["ctx"]
@@ -345,7 +365,9 @@ def apply_settings(patch):
     PORT = srv["port"]
     API_KEY = srv["apiKey"]
     NGL = srv["ngl"]
-    start_anthropic_proxy(restart=True)
+    if (before.get("anthropicEnabled"), before.get("anthropicPort"), before.get("apiKey")) != \
+       (srv["anthropicEnabled"], srv["anthropicPort"], srv["apiKey"]):
+        start_anthropic_proxy(restart=True)
     running = _health() or _alive()
     return {"ok": True, "settings": CONF, "restart_required": running}
 
@@ -373,8 +395,8 @@ def status():
                 base = None
         if base:
             uptime = int(time.time() - base)
-    gpu = _vram()
-    lan = _lan_ip()
+    gpu = _vram_cached()
+    lan = _lan_ip_cached()
     return {
         "phase": phase,
         "port": PORT,

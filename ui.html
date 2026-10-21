@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
@@ -1344,6 +1344,7 @@ const _zhText = new WeakMap();
 
 function applyLang(lang) {
   if (lang) LANG = LANGS.includes(lang) ? lang : "zh-Hant";
+  else if (LANG === "zh-Hant") return;   // source language needs no rewriting
   document.documentElement.lang = LANG === "en" ? "en" : (LANG === "zh-Hans" ? "zh-CN" : "zh-Hant");
   const dict = I18N[LANG] || {};
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
@@ -1533,7 +1534,12 @@ $("setReset").onclick = async () => {
 })();
 
 poll();
-setInterval(poll, 1500);
+let pollTimer = setInterval(poll, 1500);
+document.addEventListener("visibilitychange", () => {
+  // skip console polling while the window is hidden
+  if (document.hidden) { clearInterval(pollTimer); pollTimer = null; }
+  else if (!pollTimer) { poll(); pollTimer = setInterval(poll, 1500); }
+});
 </script>
 </body>
 </html>

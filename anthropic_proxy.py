@@ -186,14 +186,13 @@ class AnthropicProxy:
         return from_openai(body, payload.get("model") or self.alias, include_thinking)
 
     def stream(self, payload, include_thinking=False):
-        """Yield Anthropic SSE events for an OpenAI streaming response."""
+        """Yield Anthropic SSE events as they arrive (incremental, not buffered)."""
         payload = dict(payload, stream=True)
-        out = []
 
-        def emit(event, data):
-            out.append(f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n")
+        def ev(event, data):
+            return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
-        emit("message_start", {
+        yield ev("message_start", {
             "type": "message_start",
             "message": {
                 "id": _msg_id(), "type": "message", "role": "assistant",
@@ -210,17 +209,6 @@ class AnthropicProxy:
         stop_reason = "end_turn"
         usage = {"input_tokens": 0, "output_tokens": 0}
         thinking_index = None
-
-        def close_blocks():
-            nonlocal text_open, thinking_index
-            if thinking_index is not None:
-                emit("content_block_stop", {"type": "content_block_stop", "index": thinking_index})
-                thinking_index = None
-            if text_open:
-                emit("content_block_stop", {"type": "content_block_stop", "index": text_index})
-                text_open = False
-            for idx, (_bi, _id, _name) in sorted(tool_index.items()):
-                emit("content_block_stop", {"type": "content_block_stop", "index": _bi})
 
         with self._call(payload, True) as resp:
             for raw in resp:
@@ -249,10 +237,10 @@ class AnthropicProxy:
                         if thinking_index is None:
                             thinking_index = next_index
                             next_index += 1
-                            emit("content_block_start", {"type": "content_block_start", "index": thinking_index,
-                                                         "content_block": {"type": "thinking", "thinking": ""}})
-                        emit("content_block_delta", {"type": "content_block_delta", "index": thinking_index,
-                                                     "delta": {"type": "thinking_delta", "thinking": reasoning}})
+                            yield ev("content_block_start", {"type": "content_block_start", "index": thinking_index,
+                                                             "content_block": {"type": "thinking", "thinking": ""}})
+                        yield ev("content_block_delta", {"type": "content_block_delta", "index": thinking_index,
+                                                         "delta": {"type": "thinking_delta", "thinking": reasoning}})
 
                     text = delta.get("content")
                     if text:
@@ -261,10 +249,10 @@ class AnthropicProxy:
                             next_index += 1
                         if not text_open:
                             text_open = True
-                            emit("content_block_start", {"type": "content_block_start", "index": text_index,
-                                                         "content_block": {"type": "text", "text": ""}})
-                        emit("content_block_delta", {"type": "content_block_delta", "index": text_index,
-                                                     "delta": {"type": "text_delta", "text": text}})
+                            yield ev("content_block_start", {"type": "content_block_start", "index": text_index,
+                                                             "content_block": {"type": "text", "text": ""}})
+                        yield ev("content_block_delta", {"type": "content_block_delta", "index": text_index,
+                                                         "delta": {"type": "text_delta", "text": text}})
 
                     for call in delta.get("tool_calls") or []:
                         oi = call.get("index", 0)
@@ -273,24 +261,29 @@ class AnthropicProxy:
                             bi = next_index
                             next_index += 1
                             tool_index[oi] = (bi, call.get("id") or "toolu_" + _msg_id()[4:], fn.get("name", ""))
-                            emit("content_block_start", {"type": "content_block_start", "index": bi,
-                                                         "content_block": {"type": "tool_use",
-                                                                           "id": tool_index[oi][1],
-                                                                           "name": fn.get("name", ""),
-                                                                           "input": {}}})
+                            yield ev("content_block_start", {"type": "content_block_start", "index": bi,
+                                                             "content_block": {"type": "tool_use",
+                                                                               "id": tool_index[oi][1],
+                                                                               "name": fn.get("name", ""),
+                                                                               "input": {}}})
                         elif fn.get("name") and not tool_index[oi][2]:
                             tool_index[oi] = (tool_index[oi][0], tool_index[oi][1], fn["name"])
                         args = fn.get("arguments")
                         if args:
-                            emit("content_block_delta", {"type": "content_block_delta", "index": tool_index[oi][0],
-                                                         "delta": {"type": "input_json_delta", "partial_json": args}})
+                            yield ev("content_block_delta", {"type": "content_block_delta", "index": tool_index[oi][0],
+                                                             "delta": {"type": "input_json_delta", "partial_json": args}})
 
-        close_blocks()
-        emit("message_delta", {"type": "message_delta",
-                               "delta": {"stop_reason": stop_reason, "stop_sequence": None},
-                               "usage": usage})
-        emit("message_stop", {"type": "message_stop"})
-        return out
+        if thinking_index is not None:
+            yield ev("content_block_stop", {"type": "content_block_stop", "index": thinking_index})
+        if text_open:
+            yield ev("content_block_stop", {"type": "content_block_stop", "index": text_index})
+        for _oi, (bi, _id, _name) in sorted(tool_index.items()):
+            yield ev("content_block_stop", {"type": "content_block_stop", "index": bi})
+
+        yield ev("message_delta", {"type": "message_delta",
+                                   "delta": {"stop_reason": stop_reason, "stop_sequence": None},
+                                   "usage": usage})
+        yield ev("message_stop", {"type": "message_stop"})
 
 
 def serve(proxy, host, port):
@@ -309,9 +302,22 @@ def _make_handler(proxy):
         def log_message(self, *_a):
             pass
 
+        def _cors(self):
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers",
+                             "content-type, x-api-key, authorization, anthropic-version, anthropic-beta")
+
+        def do_OPTIONS(self):
+            self.send_response(204)
+            self._cors()
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
         def _json(self, code, payload):
             raw = json.dumps(payload, ensure_ascii=False).encode("utf-8")
             self.send_response(code)
+            self._cors()
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.send_header("Content-Length", str(len(raw)))
             self.end_headers()
@@ -363,6 +369,7 @@ def _make_handler(proxy):
                 if body.get("stream"):
                     events = proxy.stream(payload, want_thinking)
                     self.send_response(200)
+                    self._cors()
                     self.send_header("Content-Type", "text/event-stream")
                     self.send_header("Cache-Control", "no-cache")
                     self.end_headers()

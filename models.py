@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """Model library for Herta Station: local GGUF catalogue, Hugging Face search,
 and a background downloader.
 
@@ -43,6 +43,7 @@ FAMILIES = [
 ]
 
 _lock = threading.Lock()
+_hw_cache = {"at": 0.0, "value": None}
 _dl = {
     "active": False,
     "repo": "", "file": "", "path": "",
@@ -87,7 +88,14 @@ def gpu_total_gb():
 
 
 def hardware():
-    """Detect the GPU and its VRAM at runtime — never assume one machine."""
+    """Detect the GPU and its VRAM at runtime — never assume one machine.
+
+    Cached for a few seconds: the dashboard polls lookups often and every call
+    used to spawn nvidia-smi.
+    """
+    now = time.time()
+    if _hw_cache["value"] is not None and now - _hw_cache["at"] < 10:
+        return _hw_cache["value"]
     info = {"gpu": "unknown", "vram_gb": 0.0, "driver": "", "source": "none"}
     try:
         out = os.popen(
@@ -101,6 +109,7 @@ def hardware():
                 "driver": drv,
                 "source": "nvidia-smi",
             })
+            _hw_cache.update(at=now, value=info)
             return info
     except Exception:
         pass
@@ -121,6 +130,7 @@ def hardware():
             })
     except Exception:
         pass
+    _hw_cache.update(at=now, value=info)
     return info
 
 
@@ -219,8 +229,8 @@ def estimate(weight_gb, ctx=65536):
     return round(weight_gb + 1.9 + (ctx / 1000.0) * 0.019, 2)
 
 
-def fit_of(weight_gb, ctx=65536):
-    total = gpu_total_gb()
+def fit_of(weight_gb, ctx=65536, total=None):
+    total = total or gpu_total_gb()
     need = estimate(weight_gb, ctx)
     if need <= total * 0.92:
         return {"level": "ok", "need": need, "label": "可全載入 GPU"}
@@ -234,6 +244,7 @@ def fit_of(weight_gb, ctx=65536):
 # --------------------------------------------------------------------------- #
 def scan_local(ctx=65536):
     os.makedirs(MODELS_DIR, exist_ok=True)
+    total = gpu_total_gb()          # one lookup for the whole scan
     items = []
     active = active_model_path()
     for root, _dirs, files in os.walk(MODELS_DIR):
@@ -256,7 +267,7 @@ def scan_local(ctx=65536):
                 "params": params_of(fname),
                 "family": family_of(rel),
                 "projector": "mmproj" in fname.lower(),
-                "fit": fit_of(_gb(size), ctx),
+                "fit": fit_of(_gb(size), ctx, total),
                 "active": os.path.normcase(full) == os.path.normcase(active or ""),
             })
     items.sort(key=lambda m: (m["projector"], m["name"].lower()))
@@ -353,6 +364,9 @@ def hf_files(repo, ctx=65536):
         })
     files.sort(key=lambda f: f["bytes"])
     _cache[key] = (time.time(), files)
+    if len(_cache) > 50:                      # keep the memo table bounded
+        oldest = min(_cache, key=lambda k: _cache[k][0])
+        _cache.pop(oldest, None)
     return files
 
 
