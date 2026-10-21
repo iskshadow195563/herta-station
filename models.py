@@ -322,6 +322,7 @@ def hf_search(query, limit=30):
             "family": family_of(rid),
             "params": params_of(rid.split("/")[-1]),
             "quant": quant_of(rid),
+            "task": row.get("pipeline_tag") or "",
         })
     return out
 

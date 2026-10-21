@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
@@ -711,20 +711,30 @@ function paramBucket(p) {
   return "xxl";
 }
 
-function buildChips(hostId, options, key) {
+function buildChips(hostId, options, key, onSelect) {
   const host = $(hostId);
   options.forEach(([value, label]) => {
     const b = document.createElement("button");
     b.className = "chip2" + (LIB.filters[key] === value ? " active" : "");
     b.textContent = label;
+    b.dataset.value = value;
+    b.dataset.label = label;
     b.onclick = () => {
       LIB.filters[key] = value;
       [...host.querySelectorAll(".chip2")].forEach(x => x.classList.remove("active"));
       b.classList.add("active");
-      renderHf();
+      if (onSelect) onSelect(value, label);
+      else renderHf();
     };
     host.appendChild(b);
   });
+}
+
+/** Programmatic chip selection, used by the #models&p=… deep link. */
+function selectChip(hostId, value) {
+  const chip = $(hostId).querySelector(`.chip2[data-value="${value}"]`);
+  if (chip) chip.click();
+  return !!chip;
 }
 
 function libOpen() {
@@ -814,14 +824,20 @@ async function refreshLocal() {
   }
 }
 
-async function hfSearch() {
-  const q = $("hfQ").value.trim();
-  if (!q) return;
-  $("hfList").innerHTML = '<div class="empty">搜尋中…</div>';
+async function hfSearch(forced) {
+  const typed = $("hfQ").value.trim();
+  const q = (forced !== undefined ? String(forced) : typed).trim();
+  if (!q) {
+    $("hfList").innerHTML = '<div class="empty">輸入關鍵字搜尋，或直接點上面的廠商瀏覽該廠商的全部 GGUF 模型。</div>';
+    return;
+  }
+  const wide = forced !== undefined;   // provider-wide browse: pull more rows
+  $("hfList").innerHTML = `<div class="empty">搜尋「${esc(q)}」中…</div>`;
   try {
-    const d = await (await fetch(`/api/hf/search?q=${encodeURIComponent(q)}&limit=40`, { cache: "no-store" })).json();
-    LIB.hf = d.items || [];
+    const d = await (await fetch(`/api/hf/search?q=${encodeURIComponent(q)}&limit=${wide ? 80 : 40}`, { cache: "no-store" })).json();
     if (!d.ok) { $("hfList").innerHTML = `<div class="empty">搜尋失敗：${esc(d.message)}</div>`; return; }
+    LIB.hf = d.items || [];
+    if (wide) $("hfQ").value = "";
     renderHf();
   } catch (e) {
     $("hfList").innerHTML = `<div class="empty">搜尋失敗：${esc(e.message)}</div>`;
@@ -830,6 +846,8 @@ async function hfSearch() {
 
 function renderHf() {
   const list = LIB.hf.filter(r => {
+    // some GGUF repos are diffusion / video / TTS models — not loadable here
+    if (/to-image|to-video|text-to-speech|image-to-image/.test(r.task || "")) return false;
     if (LIB.filters.provider !== "all" && r.family !== LIB.filters.provider) return false;
     if (LIB.filters.params !== "all" && paramBucket(r.params) !== LIB.filters.params) return false;
     if (LIB.filters.quant !== "all" && !String(r.id).toUpperCase().includes(LIB.filters.quant)) return false;
@@ -955,11 +973,41 @@ $("dlCancel").onclick = async () => {
 };
 $("dlBack").onclick = () => { libTab("local"); refreshLocal(); };
 
-buildChips("fProvider", PROVIDERS, "provider");
+const PROVIDER_QUERY = { Qwen: "qwen", DeepSeek: "deepseek", Llama: "llama", Gemma: "gemma", Mistral: "mistral", GLM: "glm" };
+
+buildChips("fProvider", PROVIDERS, "provider", (value, label) => {
+  const typed = $("hfQ").value.trim();
+  if (value === "all") {
+    if (typed) { hfSearch(); return; }
+    LIB.hf = [];
+    $("hfList").innerHTML = '<div class="empty">輸入關鍵字搜尋，或直接點上面的廠商瀏覽該廠商的全部 GGUF 模型。</div>';
+    return;
+  }
+  if (typed) { renderHf(); return; }        // 已有關鍵字：只在前端過濾
+  const keyword = PROVIDER_QUERY[label];
+  if (!keyword) {
+    $("hfList").innerHTML = '<div class="empty">「其他」沒有對應的關鍵字，請直接輸入模型名稱。</div>';
+    return;
+  }
+  hfSearch(keyword);                         // 廠商瀏覽：不需輸入關鍵字
+});
 buildChips("fParams", PARAM_BUCKETS, "params");
 buildChips("fQuant", QUANT_BUCKETS, "quant");
 
-if (location.hash === "#models") libOpen();
+/* deep links: #models | #models&p=qwen | #models&q=gemma 12b | #settings */
+(function applyHash() {
+  const raw = location.hash.replace(/^#/, "");
+  if (!raw) return;
+  const [view, qs] = raw.split("&");
+  const params = new URLSearchParams(qs || "");
+  if (view === "settings") { openSettings(); return; }
+  if (view !== "models") return;
+  libOpen();
+  const q = params.get("q");
+  const p = params.get("p");
+  if (q) { libTab("search"); $("hfQ").value = q; hfSearch(); return; }
+  if (p) { libTab("search"); selectChip("fProvider", p); }
+})();
 
 /* ---------- settings ---------- */
 const SET = { current: null, defaults: null };
@@ -1050,7 +1098,6 @@ async function saveSettings(restart) {
 }
 
 $("btnSettings").onclick = openSettings;
-if (location.hash === "#settings") openSettings();
 $("setClose").onclick = () => $("setModal").classList.remove("show");
 $("setClose2").onclick = () => $("setModal").classList.remove("show");
 $("setModal").addEventListener("click", e => { if (e.target.id === "setModal") $("setModal").classList.remove("show"); });
