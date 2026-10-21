@@ -437,9 +437,9 @@
     <div class="tabpane hidden" id="paneDl">
       <div class="dlrow"><span id="dlName">沒有進行中的下載</span><span id="dlPct">0%</span></div>
       <div class="dlbars"><div class="fill" id="dlFill"></div></div>
-      <div class="hintline mono" id="dlMeta">—</div>
+      <div class="hintline mono" id="dlMeta">從 Hugging Face 搜尋分頁挑一個權重即可下載。</div>
       <div style="display:flex;gap:10px">
-        <button class="mini" id="dlCancel">取消下載</button>
+        <button class="mini" id="dlCancel" disabled>取消下載</button>
         <button class="mini" id="dlBack">回本機模型</button>
       </div>
     </div>
@@ -643,6 +643,7 @@ function libOpen() {
 function libClose() {
   $("libModal").classList.remove("show");
   if (LIB.dlTimer) { clearInterval(LIB.dlTimer); LIB.dlTimer = null; }
+  if (LIB.dlDone) resetDl();
 }
 function libTab(name) {
   ["local", "search", "dl"].forEach(t => {
@@ -693,16 +694,19 @@ async function refreshLocal() {
     items.forEach(m => {
       const fit = m.fit || {};
       const star = top && String(m.params) === String(top.params_b) + "B" ? " ★" : "";
+      const actLabel = m.projector ? "投影檔" : (m.active ? "使用中" : "使用");
+      const actOff = m.projector || m.active;
       const row = document.createElement("div");
-      row.className = "mtr" + (m.active ? " reco" : "");
+      row.className = "mtr" + (m.active && !m.projector ? " reco" : "");
       row.innerHTML = `
         <span class="c-name">${esc(m.name)}${star}<small>${esc(m.rel)}${m.projector ? " · 視覺投影" : ""}</small></span>
         <span class="c-num">${m.gb} GB</span>
         <span class="c-num">${esc(m.params)}</span>
         <span class="c-num">${esc(m.quant)}</span>
         <span><span class="mfit ${fit.level || "unknown"}">${esc(fit.label || "")}${fit.need ? " · " + fit.need + " GB" : ""}</span></span>
-        <span class="c-act"><button class="mini ${m.active ? "use" : ""}" ${m.active ? "disabled" : ""}>${m.active ? "使用中" : "使用"}</button></span>`;
+        <span class="c-act"><button class="mini ${m.active && !m.projector ? "use" : ""}" ${actOff ? "disabled" : ""}>${actLabel}</button></span>`;
       row.querySelector("button").onclick = async () => {
+        if (m.projector) return;
         if (!confirm(`切換到 ${m.name}？\n模型會重新載入（約 10–30 秒）。`)) return;
         toast("切換模型中…");
         const r = await (await fetch(`/api/select?path=${encodeURIComponent(m.path)}`, { method: "POST" })).json();
@@ -787,9 +791,20 @@ function renderHf() {
   });
 }
 
+async function resetDl() {
+  try { await fetch("/api/download/reset", { method: "POST" }); } catch (e) { /* ignore */ }
+  LIB.dlDone = false;
+  $("dlName").textContent = "沒有進行中的下載";
+  $("dlPct").textContent = "0%";
+  $("dlFill").style.width = "0%";
+  $("dlMeta").textContent = "—";
+  $("dlCancel").disabled = true;
+}
+
 async function pollDownload() {
   try {
     const d = await (await fetch("/api/download/status", { cache: "no-store" })).json();
+    $("dlCancel").disabled = !d.active;
     if (d.active) {
       $("dlName").textContent = `${d.repo} / ${d.file}`;
       $("dlPct").textContent = (d.percent || 0).toFixed(1) + "%";
@@ -805,6 +820,7 @@ async function pollDownload() {
         $("dlMeta").textContent = d.error;
         $("dlFill").style.width = "0%";
         toast("下載失敗：" + d.error, true);
+        setTimeout(() => { resetDl(); }, 2500);
       } else {
         $("dlName").textContent = "下載完成";
         $("dlPct").textContent = "100%";
@@ -812,7 +828,14 @@ async function pollDownload() {
         $("dlMeta").textContent = d.path;
         toast("下載完成，已設為預設模型");
         refreshLocal();
+        // clear the bar and jump back to the local list, so it doesn't linger
+        setTimeout(() => { resetDl(); libTab("local"); }, 1400);
       }
+    } else if (!d.finished) {
+      $("dlName").textContent = "沒有進行中的下載";
+      $("dlPct").textContent = "0%";
+      $("dlFill").style.width = "0%";
+      $("dlMeta").textContent = "從 Hugging Face 搜尋分頁挑一個權重即可下載。";
     }
   } catch (e) { /* ignore */ }
 }

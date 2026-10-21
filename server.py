@@ -412,6 +412,8 @@ class Handler(BaseHTTPRequestHandler):
                 models.set_active(target)
             except OSError as exc:
                 return {"ok": False, "message": f"找不到檔案: {exc}"}
+            except ValueError as exc:
+                return {"ok": False, "message": str(exc)}
             was_running = _health() or _alive()
             if was_running:
                 stop_model()
@@ -435,6 +437,7 @@ class Handler(BaseHTTPRequestHandler):
             "/api/select": _select,
             "/api/hf/download": _dl_start,
             "/api/download/cancel": models.cancel_download,
+            "/api/download/reset": models.reset_download,
         }
         fn = routes.get(path)
         if not fn:

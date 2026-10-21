@@ -274,10 +274,16 @@ def active_model_path():
     return os.environ.get("HERTA_MODEL", "")
 
 
+def is_projector(path):
+    return "mmproj" in os.path.basename(path).lower()
+
+
 def set_active(path):
     path = os.path.abspath(path)
     if not os.path.exists(path):
         raise FileNotFoundError(path)
+    if is_projector(path):
+        raise ValueError("視覺投影檔（mmproj）不能當成模型載入")
     os.makedirs(os.path.dirname(ACTIVE_FILE) or ".", exist_ok=True)
     with open(ACTIVE_FILE, "w", encoding="utf-8") as fh:
         json.dump({"path": path}, fh, ensure_ascii=False)
@@ -395,7 +401,8 @@ def _download_worker(repo, filename):
         with _lock:
             _dl.update({"active": False, "finished": True, "path": target, "speed": 0.0,
                         "total": os.path.getsize(target), "done": os.path.getsize(target)})
-        set_active(target)
+        if not is_projector(target):     # a projector is not loadable as a model
+            set_active(target)
     except Exception as exc:
         try:
             if os.path.exists(part):
@@ -422,3 +429,15 @@ def start_download(repo, filename):
 def cancel_download():
     _dl_cancel.set()
     return {"ok": True, "message": "已請求取消"}
+
+
+def reset_download():
+    """Clear a finished/errored download so the UI can drop the progress bar."""
+    global _dl
+    with _lock:
+        if _dl["active"]:
+            return {"ok": False, "message": "下載進行中，無法重設"}
+        _dl = {"active": False, "repo": "", "file": "", "path": "",
+               "done": 0, "total": 0, "speed": 0.0, "started": 0.0,
+               "error": "", "finished": False}
+    return {"ok": True, "message": "已清除下載狀態"}
