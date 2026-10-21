@@ -20,6 +20,7 @@ import time
 import urllib.parse
 import urllib.request
 import models
+import settings as appsettings
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 # ui.html lives next to the script, or inside the PyInstaller bundle
@@ -31,19 +32,21 @@ MODEL = os.environ.get("HERTA_MODEL", r"D:\ollama-gguf\qwen3.8-27b\Qwen3.8-27B-U
 MMPROJ = os.environ.get("HERTA_MMPROJ_PATH", r"D:\ollama-gguf\qwen3.8-27b\mmproj-F16.gguf")
 ALIAS = os.environ.get("HERTA_ALIAS", "")
 HOST = "127.0.0.1"                               # control plane / probes (never exposed)
-BIND = os.environ.get("HERTA_BIND", "0.0.0.0")   # llama-server listen address (LAN reachable)
-API_KEY = os.environ.get("HERTA_API_KEY", "").strip()  # optional bearer token for LAN clients
-PORT = int(os.environ.get("HERTA_PORT", "11433"))
-CTX = int(os.environ.get("HERTA_CTX", "65536"))
-PARALLEL = int(os.environ.get("HERTA_PARALLEL", "1"))
+
+CONF = appsettings.load()                        # settings.json wins over env defaults
+BIND = CONF["server"]["bind"]                    # llama-server listen address
+API_KEY = CONF["server"]["apiKey"]               # optional bearer token for LAN clients
+PORT = CONF["server"]["port"]
+CTX = CONF["server"]["ctx"]
+PARALLEL = CONF["server"]["parallel"]
 FA = os.environ.get("HERTA_FA", "on")
-CTK = os.environ.get("HERTA_CTK", "q4_0")   # q4_0 KV keeps 64k ctx under the 16 GB cliff
-CTV = os.environ.get("HERTA_CTV", "q4_0")
+CTK = CONF["server"]["ctk"]
+CTV = CONF["server"]["ctv"]
 # the vision projector costs ~0.9 GB; off by default so 64k context fits in 16 GB
 MMPROJ_ON = os.environ.get("HERTA_MMPROJ", "0").lower() in ("1", "on", "true", "yes")
 # cap on thinking tokens per reply; -1 disables the cap
 REASONING_BUDGET = int(os.environ.get("HERTA_REASONING_BUDGET", "4096"))
-NGL = 99
+NGL = CONF["server"]["ngl"]
 UI_PORT = 8899
 
 LOG_PATH = os.path.join(DATA_DIR, "llama-server.log")
@@ -294,6 +297,26 @@ def selftest():
 
 
 # --------------------------------------------------------------------------- #
+# settings
+# --------------------------------------------------------------------------- #
+def apply_settings(patch):
+    """Persist UI/server preferences and make them the live values."""
+    global CONF, CTX, CTK, CTV, PARALLEL, BIND, PORT, API_KEY, NGL
+    CONF = appsettings.save(patch or {})
+    srv = CONF["server"]
+    CTX = srv["ctx"]
+    CTK = srv["ctk"]
+    CTV = srv["ctv"]
+    PARALLEL = srv["parallel"]
+    BIND = srv["bind"]
+    PORT = srv["port"]
+    API_KEY = srv["apiKey"]
+    NGL = srv["ngl"]
+    running = _health() or _alive()
+    return {"ok": True, "settings": CONF, "restart_required": running}
+
+
+# --------------------------------------------------------------------------- #
 # status
 # --------------------------------------------------------------------------- #
 def status():
@@ -398,6 +421,9 @@ class Handler(BaseHTTPRequestHandler):
             self._send(200, models.download_state())
         elif path == "/api/recommend":
             self._send(200, models.recommend(CTX))
+        elif path == "/api/settings":
+            self._send(200, {"ok": True, "settings": appsettings.load(),
+                             "defaults": appsettings.DEFAULTS})
         else:
             self._send(404, {"ok": False, "message": "not found"})
 
@@ -429,12 +455,23 @@ class Handler(BaseHTTPRequestHandler):
                 return {"ok": False, "message": "缺少 repo / file"}
             return models.start_download(repo, name)
 
+        def _settings_save():
+            n = int(self.headers.get("Content-Length") or 0)
+            patch = {}
+            if n > 0:
+                try:
+                    patch = json.loads(self.rfile.read(n).decode("utf-8-sig"))
+                except Exception as exc:
+                    return {"ok": False, "message": f"設定格式錯誤: {exc}"}
+            return apply_settings(patch)
+
         routes = {
             "/api/start": start_model,
             "/api/stop": stop_model,
             "/api/purge": purge_all,
             "/api/selftest": selftest,
             "/api/select": _select,
+            "/api/settings": _settings_save,
             "/api/hf/download": _dl_start,
             "/api/download/cancel": models.cancel_download,
             "/api/download/reset": models.reset_download,

@@ -1,4 +1,4 @@
-﻿# Herta Station
+# Herta Station
 
 A single-file Windows app that starts/stops a local **llama.cpp** server and shows its state in a Herta Space Station styled window — VRAM, PID, context, KV cache type, throughput, and the live `llama-server` log.
 
@@ -20,9 +20,25 @@ Running a 27B model on a 16 GB card through Ollama left ~30 % of the layers on t
 - **Model library**: scans a `models/` folder for GGUF files, shows fit/VRAM estimates, and hot-swaps the active model.
 - **Hugging Face search** built in: search any model name, filter by vendor / parameter count / quantisation, list the repo's GGUF files with sizes, and download one straight into the library (progress bar, auto-selects when done).
 - **OpenAI-compatible endpoint** on `0.0.0.0:11433` (LAN reachable, optional bearer key); the control plane stays on `127.0.0.1:8899`.
+- **Settings panel**: UI zoom 80–135 %, background animation toggle, and the launch parameters (context, KV precision, parallel slots, GPU layers, bind address, port, API key) — saved to `settings.json` and applied on the next model load.
 - Ships as a **12 MB one-file EXE** (PyInstaller + pywebview/WebView2) — no Python, no browser tab.
 
 ![LAN endpoint row](docs/lan.png)
+
+## Settings
+
+![Settings](docs/settings.png)
+
+Click **設定** in the header (or open `http://127.0.0.1:8899/#settings`).
+
+| Group | Fields |
+| --- | --- |
+| 介面 | UI zoom (80–135 %, previewed live as CSS zoom), background animation on/off |
+| 模型服務 | context length, KV cache precision (f16 / q8_0 / q5_1 / q4_0), parallel slots (`-np`), GPU layers (`-ngl`), bind address, port, API key |
+
+- Everything is stored in `settings.json` next to the EXE; the panel wins over the environment variables, which stay as first-run defaults.
+- Changing anything under 模型服務 needs a model reload — the panel says so and offers **儲存並重載模型**.
+- **還原預設** writes the built-in defaults back.
 
 ## Model library
 

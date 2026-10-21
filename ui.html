@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
@@ -270,6 +270,24 @@
   .pick .tier{font-size:9px;letter-spacing:.2em;color:var(--cyan)}
   .pick.primary .tier{color:var(--gold)}
   .reco-actions{display:flex;gap:8px;margin-top:9px}
+
+  /* ---------- settings ---------- */
+  body.no-anim #stars{display:none}
+  body.no-anim .ring, body.no-anim .dot, body.no-anim .sigil svg, body.no-anim .toast{animation:none !important}
+  .setwrap{display:flex;flex-direction:column;gap:14px;overflow:auto;padding-right:4px}
+  .setgroup{border:1px solid rgba(111,242,255,.14);padding:12px 14px;display:flex;flex-direction:column;gap:9px;background:rgba(8,13,26,.6)}
+  .settitle{font-size:11px;letter-spacing:.22em;color:var(--cyan)}
+  .settitle small{color:var(--dim);letter-spacing:.04em;font-size:9.5px}
+  .setrow{display:flex;align-items:center;gap:12px;font-size:12px;color:#dbe9ff}
+  .setrow > span{flex:0 0 154px;color:var(--dim);font-size:11px;letter-spacing:.08em}
+  .setrow input[type=range]{flex:1;accent-color:#6ff2ff}
+  .setrow input[type=number], .setrow input[type=text], .setrow select{
+    flex:1;background:rgba(4,8,18,.9);border:1px solid var(--line);color:var(--text);
+    padding:7px 9px;font-family:inherit;font-size:12px;outline:none}
+  .setrow select{cursor:pointer}
+  .setrow b{width:52px;text-align:right;color:var(--cyan);font-size:11px}
+  .setrow input[type=checkbox]{width:16px;height:16px;accent-color:#6ff2ff}
+  .setactions{display:flex;gap:8px;flex-wrap:wrap}
   .mini{font-size:10px;letter-spacing:.1em;padding:5px 10px;cursor:pointer;font-family:inherit;
         color:var(--cyan);border:1px solid rgba(111,242,255,.4);background:rgba(111,242,255,.06)}
   .mini:hover{background:rgba(111,242,255,.16)}
@@ -306,6 +324,7 @@
     </div>
   </div>
   <div class="headmeta">
+    <button class="libbtn" id="btnSettings">設定</button>
     <button class="libbtn" id="btnLib">模型庫 · MODELS</button>
     <span class="badge mono">OPENAI-COMPATIBLE · /v1</span>
     <div class="chip" id="chipConn"><i class="dot"></i><span id="connText">LINK STANDBY</span></div>
@@ -442,6 +461,81 @@
         <button class="mini" id="dlCancel" disabled>取消下載</button>
         <button class="mini" id="dlBack">回本機模型</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="setModal">
+  <div class="modal-card" style="width:min(780px,92vw);height:auto;max-height:92vh">
+    <div class="modal-head">
+      <span class="tag">設定</span>
+      <span class="mono dir" id="setPath">settings.json</span>
+      <button class="x" id="setClose">✕</button>
+    </div>
+
+    <div class="setwrap">
+      <div class="setgroup">
+        <div class="settitle">介面</div>
+        <label class="setrow"><span>介面縮放</span>
+          <input type="range" id="setScale" min="80" max="135" step="5">
+          <b class="mono" id="setScaleVal">100%</b>
+        </label>
+        <label class="setrow"><span>背景動畫（星空／呼吸光）</span>
+          <input type="checkbox" id="setAnim">
+        </label>
+      </div>
+
+      <div class="setgroup">
+        <div class="settitle">模型服務 <small>變更後需要重新載入模型才會生效</small></div>
+        <label class="setrow"><span>上下文長度</span>
+          <select id="setCtx">
+            <option value="8192">8192</option>
+            <option value="16384">16384</option>
+            <option value="24576">24576</option>
+            <option value="32768">32768</option>
+            <option value="49152">49152</option>
+            <option value="65536">65536</option>
+            <option value="98304">98304</option>
+            <option value="131072">131072</option>
+            <option value="0">自訂…</option>
+          </select>
+          <input type="number" id="setCtxCustom" min="2048" max="262144" step="1024" style="flex:0 0 130px;display:none">
+        </label>
+        <label class="setrow"><span>KV 快取精度</span>
+          <select id="setKv">
+            <option value="f16">f16（最準，最吃記憶體）</option>
+            <option value="q8_0">q8_0</option>
+            <option value="q5_1">q5_1</option>
+            <option value="q4_0">q4_0（最省，速度快）</option>
+          </select>
+        </label>
+        <label class="setrow"><span>並行 slot（-np）</span>
+          <input type="number" id="setNp" min="1" max="8" step="1">
+        </label>
+        <label class="setrow"><span>GPU 層數（-ngl）</span>
+          <input type="number" id="setNgl" min="0" max="999" step="1">
+        </label>
+        <label class="setrow"><span>監聽位址</span>
+          <select id="setBind">
+            <option value="0.0.0.0">0.0.0.0（區網可用）</option>
+            <option value="127.0.0.1">127.0.0.1（僅本機）</option>
+          </select>
+        </label>
+        <label class="setrow"><span>連接埠</span>
+          <input type="number" id="setPort" min="1024" max="65535" step="1">
+        </label>
+        <label class="setrow"><span>API Key</span>
+          <input type="text" id="setKey" placeholder="留空 = 不驗證" autocomplete="off">
+        </label>
+      </div>
+
+      <div class="setactions">
+        <button class="mini use" id="setSave">儲存</button>
+        <button class="mini" id="setSaveRestart">儲存並重載模型</button>
+        <button class="mini" id="setReset">還原預設</button>
+        <button class="mini" id="setClose2">關閉</button>
+      </div>
+      <div class="hintline mono" id="setHint"></div>
     </div>
   </div>
 </div>
@@ -866,6 +960,132 @@ buildChips("fParams", PARAM_BUCKETS, "params");
 buildChips("fQuant", QUANT_BUCKETS, "quant");
 
 if (location.hash === "#models") libOpen();
+
+/* ---------- settings ---------- */
+const SET = { current: null, defaults: null };
+
+function applyUi(s) {
+  if (!s || !s.ui) return;
+  document.body.style.zoom = s.ui.scale;
+  document.body.classList.toggle("no-anim", !s.ui.animations);
+}
+
+function fillSettings(s) {
+  const ui = s.ui || {}, srv = s.server || {};
+  $("setScale").value = Math.round((ui.scale || 1) * 100);
+  $("setScaleVal").textContent = Math.round((ui.scale || 1) * 100) + "%";
+  $("setAnim").checked = !!ui.animations;
+  const sel = $("setCtx");
+  const known = [...sel.options].map(o => o.value);
+  if (known.includes(String(srv.ctx))) {
+    sel.value = String(srv.ctx);
+    $("setCtxCustom").style.display = "none";
+  } else {
+    sel.value = "0";
+    $("setCtxCustom").style.display = "";
+    $("setCtxCustom").value = srv.ctx;
+  }
+  $("setKv").value = srv.ctk || "q4_0";
+  $("setNp").value = srv.parallel ?? 1;
+  $("setNgl").value = srv.ngl ?? 99;
+  $("setBind").value = srv.bind || "0.0.0.0";
+  $("setPort").value = srv.port ?? 11433;
+  $("setKey").value = srv.apiKey || "";
+}
+
+function collectSettings() {
+  const sel = $("setCtx").value;
+  const ctx = sel === "0" ? parseInt($("setCtxCustom").value || "65536", 10) : parseInt(sel, 10);
+  return {
+    ui: { scale: parseInt($("setScale").value, 10) / 100, animations: $("setAnim").checked },
+    server: {
+      ctx: ctx,
+      ctk: $("setKv").value,
+      ctv: $("setKv").value,
+      parallel: parseInt($("setNp").value, 10),
+      ngl: parseInt($("setNgl").value, 10),
+      bind: $("setBind").value,
+      port: parseInt($("setPort").value, 10),
+      apiKey: $("setKey").value.trim(),
+    },
+  };
+}
+
+async function openSettings() {
+  try {
+    const d = await (await fetch("/api/settings", { cache: "no-store" })).json();
+    SET.current = d.settings;
+    SET.defaults = d.defaults;
+    fillSettings(d.settings || {});
+    $("setPath").textContent = "settings.json · " + (d.settings ? "已載入" : "使用預設值");
+  } catch (e) {
+    $("setPath").textContent = "讀取設定失敗：" + e.message;
+  }
+  $("setModal").classList.add("show");
+}
+
+async function saveSettings(restart) {
+  const patch = collectSettings();
+  try {
+    const r = await (await fetch("/api/settings", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch),
+    })).json();
+    if (!r.ok) { toast(r.message, true); return; }
+    SET.current = r.settings;
+    applyUi(r.settings);
+    $("setHint").textContent = restart
+      ? "已儲存，正在重新載入模型…"
+      : (r.restart_required ? "已儲存（模型服務重新載入後生效）" : "已儲存");
+    toast("設定已儲存");
+    if (restart) {
+      $("setHint").textContent = "已儲存，正在重新載入模型…";
+      await fetch("/api/stop", { method: "POST" });
+      await new Promise(r2 => setTimeout(r2, 800));
+      await fetch("/api/start", { method: "POST" });
+      poll();
+    }
+  } catch (e) {
+    toast("儲存失敗：" + e.message, true);
+  }
+}
+
+$("btnSettings").onclick = openSettings;
+if (location.hash === "#settings") openSettings();
+$("setClose").onclick = () => $("setModal").classList.remove("show");
+$("setClose2").onclick = () => $("setModal").classList.remove("show");
+$("setModal").addEventListener("click", e => { if (e.target.id === "setModal") $("setModal").classList.remove("show"); });
+$("setScale").addEventListener("input", e => {
+  const v = parseInt(e.target.value, 10);
+  $("setScaleVal").textContent = v + "%";
+  document.body.style.zoom = v / 100;
+});
+$("setCtx").addEventListener("change", e => {
+  $("setCtxCustom").style.display = e.target.value === "0" ? "" : "none";
+});
+$("setSave").onclick = () => saveSettings(false);
+$("setSaveRestart").onclick = () => saveSettings(true);
+$("setReset").onclick = async () => {
+  if (!SET.defaults) return;
+  const r = await (await fetch("/api/settings", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(SET.defaults),
+  })).json();
+  if (!r.ok) { toast(r.message, true); return; }
+  SET.current = r.settings;
+  fillSettings(r.settings);
+  applyUi(r.settings);
+  $("setHint").textContent = "已還原預設值";
+  toast("已還原預設值");
+};
+
+(async () => {
+  try {
+    const d = await (await fetch("/api/settings", { cache: "no-store" })).json();
+    SET.current = d.settings;
+    SET.defaults = d.defaults;
+    applyUi(d.settings);
+    fillSettings(d.settings || {});
+  } catch (e) { /* keep CSS defaults */ }
+})();
 
 poll();
 setInterval(poll, 1500);
