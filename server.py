@@ -396,6 +396,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(200, {"ok": False, "message": str(exc), "items": []})
         elif path == "/api/download/status":
             self._send(200, models.download_state())
+        elif path == "/api/recommend":
+            self._send(200, models.recommend(CTX))
         else:
             self._send(404, {"ok": False, "message": "not found"})
 

@@ -82,13 +82,132 @@ def params_of(text):
 
 
 def gpu_total_gb():
+    hw = hardware()
+    return hw["vram_gb"] or 16.0
+
+
+def hardware():
+    """Detect the GPU and its VRAM at runtime — never assume one machine."""
+    info = {"gpu": "unknown", "vram_gb": 0.0, "driver": "", "source": "none"}
     try:
         out = os.popen(
-            "nvidia-smi --query-gpu=memory.total --format=csv,noheader,nounits"
+            "nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader,nounits"
         ).read().strip().splitlines()
-        return round(int(out[0]) / 1024, 2)
+        if out:
+            name, mem, drv = [x.strip() for x in out[0].split(",")[:3]]
+            info.update({
+                "gpu": name,
+                "vram_gb": round(int(mem) / 1024, 2),
+                "driver": drv,
+                "source": "nvidia-smi",
+            })
+            return info
     except Exception:
-        return 16.0
+        pass
+    try:  # AMD / Intel / no nvidia driver: DXGI adapter memory
+        out = os.popen(
+            "powershell -NoProfile -Command \"(Get-CimInstance Win32_VideoController | "
+            "Sort-Object AdapterRAM -Descending | Select-Object -First 1).Name\""
+        ).read().strip()
+        mem = os.popen(
+            "powershell -NoProfile -Command \"(Get-CimInstance Win32_VideoController | "
+            "Measure-Object -Property AdapterRAM -Maximum).Maximum\""
+        ).read().strip()
+        if out:
+            info.update({
+                "gpu": out,
+                "vram_gb": round(int(mem or 0) / (1024 ** 3), 2),
+                "source": "Win32_VideoController",
+            })
+    except Exception:
+        pass
+    return info
+
+
+# GB of weights per billion parameters, measured on real GGUF files
+QUANT_DENSITY = [
+    ("Q8_0", 0.99), ("Q6_K", 0.77), ("Q5_K_M", 0.68), ("Q4_K_M", 0.59),
+    ("Q3_K_XL", 0.455), ("Q2_K_XL", 0.37),
+]
+SANE_QUANTS = 4  # indexes 0..3 are the "don't wreck quality" range
+SIZE_CLASSES = [70, 32, 27, 24, 14, 13, 12, 9, 8, 7, 4, 3, 1.5]
+
+
+def recommend(ctx=65536):
+    """Work out what actually fits this GPU, at runtime.
+
+    Everything is derived from the detected VRAM: no per-machine constants.
+    """
+    hw = hardware()
+    total = hw["vram_gb"] or 0.0
+    overhead = round(1.9 + (ctx / 1000.0) * 0.019, 2)    # buffers + KV for this ctx
+    budget = round(total * 0.965, 2) if total else 0.0   # leave a little for the desktop
+    weights = round(max(0.0, budget - overhead), 2) if total else 0.0
+    ceiling_weights = round(max(0.0, total * 0.99 - overhead), 2) if total else 0.0
+
+    def best_for(cls, limit_idx, room):
+        for q, dens in QUANT_DENSITY[:limit_idx]:
+            gb = round(cls * dens, 2)
+            if gb <= room:
+                return q, gb
+        return None, None
+
+    picks = []
+    main = None
+    for cls in SIZE_CLASSES:
+        q, gb = best_for(cls, SANE_QUANTS, weights)      # Q8_0 … Q4_K_M
+        if q:
+            main = {"tier": "建議", "params_b": cls, "quant": q, "gb": gb,
+                    "headroom_gb": round(weights - gb, 2),
+                    "reason": f"{cls}B @ {q} fits fully on a {hw['vram_gb']} GB card with "
+                              f"{round(weights - gb, 2)} GB to spare."}
+            break
+    if main:
+        picks.append(main)
+
+    # quality ceiling: bigger model, lower quant, right up against the limit
+    for cls in SIZE_CLASSES:
+        if main and cls <= main["params_b"]:
+            continue
+        q, gb = best_for(cls, 5, ceiling_weights)        # … down to Q3_K_XL
+        if q:
+            picks.append({"tier": "品質上限", "params_b": cls, "quant": q, "gb": gb,
+                          "headroom_gb": round(ceiling_weights - gb, 2),
+                          "reason": f"{cls}B only fits at {q}; it sits close to the VRAM "
+                                    f"limit and generates noticeably slower."})
+            break
+
+    # speed: same size, lighter quant
+    if main:
+        gb = round(main["params_b"] * dict(QUANT_DENSITY)["Q4_K_M"], 2)
+        if gb <= weights:
+            picks.append({"tier": "速度", "params_b": main["params_b"], "quant": "Q4_K_M",
+                          "gb": gb, "headroom_gb": round(weights - gb, 2),
+                          "reason": f"same {main['params_b']}B model at Q4_K_M: "
+                                    f"{round((main['gb'] - gb) / main['gb'] * 100)}% smaller weights, "
+                                    f"faster tokens."})
+
+    local_best = None
+    for item in scan_local(ctx):
+        if item["projector"] or item["fit"]["level"] == "over":
+            continue
+        try:
+            params = float(str(item["params"]).replace("B", ""))
+        except ValueError:
+            params = 0.0
+        gap = abs(params - (main["params_b"] if main else params))
+        if local_best is None or gap < local_best[0]:
+            local_best = (gap, item)
+    return {
+        "hardware": hw,
+        "ctx": ctx,
+        "overhead_gb": overhead,
+        "budget_gb": budget,
+        "weights_budget_gb": weights,
+        "picks": picks,
+        "local_best": local_best[1] if local_best else None,
+        "query_hint": f"qwen3.5 {main['params_b']}b" if main else "",
+    }
 
 
 def estimate(weight_gb, ctx=65536):

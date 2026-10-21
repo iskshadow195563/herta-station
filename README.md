@@ -32,7 +32,7 @@ Click **模型庫 · MODELS** in the header. Three tabs:
 
 | Tab | What it does |
 | --- | --- |
-| 本機模型 | Lists every `*.gguf` under the models folder (default `<exe dir>\models`, override with `HERTA_MODELS_DIR`). Shows size, params, quant, and whether it fits: needs `weights + 1.9 GB + ctx/1000 × 0.019 GB` of VRAM. **使用** swaps the model and restarts the server (~10–30 s). |
+| 本機模型 | Scans every `*.gguf` under the models folder (default `<exe dir>\models`, override with `HERTA_MODELS_DIR`) into a table with **separate columns for name, size, parameters, quantisation and VRAM verdict**. **使用** swaps the model and restarts the server (~10–30 s). |
 | Hugging Face 搜尋 | Searches `huggingface.co/api/models?filter=gguf`. Filter chips for vendor (Qwen / DeepSeek / Llama / Gemma / Mistral / GLM), parameter bucket (≤4B, 7–9B, 13–14B, 27–32B, 70B+), and quantisation (Q4–Q8). Each repo expands to its GGUF files with size + fit estimate. |
 | 下載 | Live download progress (percent, GB, MB/s), cancel button. A finished download is written to `models/<owner>__<repo>/` and becomes the active model. |
 
@@ -40,6 +40,18 @@ Dropping a `.gguf` in by hand works too — hit **重新整理**.
 Handy shortcut: opening `http://127.0.0.1:8899/#models` jumps straight into the library.
 
 The default model is whatever `HERTA_MODEL` points at until you pick one in the library; the choice is stored next to the EXE in `active-model.json`.
+### Runtime recommendation
+
+The **本機建議** card is computed on every open from the hardware it finds — nothing is hard-coded per machine, so it adapts to whatever GPU the user has:
+
+1. VRAM is read from `nvidia-smi`; if that is missing it falls back to `Win32_VideoController` (AMD/Intel).
+2. Context overhead is derived from the configured context: `1.9 GB buffers + ctx/1000 × 0.019 GB KV`.
+3. The weight budget is `VRAM × 0.965 − overhead` (a hard ceiling tier uses `× 0.99`).
+4. Quant density is measured (GB per billion params): Q8_0 0.99, Q6_K 0.77, Q5_K_M 0.68, Q4_K_M 0.59, Q3_K_XL 0.455, Q2_K_XL 0.37.
+5. Three tiers come out of that: **建議** (largest size class that still fits at Q4_K_M or better), **品質上限** (bigger model pushed down to Q3, right against the limit) and **速度** (same size at Q4_K_M).
+
+Example on a 16 GB RTX 5080 at 64k context: weights budget 12.21 GB → 14B Q6_K (10.78 GB) recommended, 27B Q3_K_XL (12.29 GB) as the quality ceiling, 14B Q4_K_M (8.26 GB) for speed.
+
 
 ## Requirements
 

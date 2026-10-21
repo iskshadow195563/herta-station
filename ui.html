@@ -236,18 +236,40 @@
   .mlist{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:6px;padding-right:4px}
   .mlist::-webkit-scrollbar{width:8px}
   .mlist::-webkit-scrollbar-thumb{background:rgba(111,242,255,.2);border-radius:8px}
-  .mrow{
-    display:flex;align-items:center;gap:14px;padding:9px 12px;border:1px solid rgba(111,242,255,.12);
-    background:rgba(10,16,30,.7);
-  }
-  .mrow:hover{border-color:rgba(111,242,255,.35);background:rgba(16,26,46,.85)}
+  .mtable{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:4px}
+  .mtable::-webkit-scrollbar{width:8px}
+  .mtable::-webkit-scrollbar-thumb{background:rgba(111,242,255,.2);border-radius:8px}
+  .mhead,.mtr{display:grid;grid-template-columns:minmax(0,1fr) 78px 60px 88px 196px 84px;gap:12px;align-items:center}
+  .mhead{font-size:9.5px;letter-spacing:.16em;color:var(--dim);padding:0 12px 5px;border-bottom:1px solid var(--line);position:sticky;top:0;background:#0a1020;z-index:1}
+  .mtr{padding:9px 12px;border:1px solid rgba(111,242,255,.12);background:rgba(10,16,30,.7);font-size:12px}
+  .mtr:hover{border-color:rgba(111,242,255,.35);background:rgba(16,26,46,.85)}
+  .mtr.reco{border-color:rgba(255,210,122,.45);box-shadow:0 0 0 1px rgba(255,210,122,.12) inset}
+  .mtr.hf{grid-template-columns:minmax(0,1fr) 84px 84px 96px}
+  .mtr.hff{grid-template-columns:minmax(0,1fr) 78px 88px 192px 88px}
+  .c-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#e8f4ff}
+  .c-name small{display:block;font-size:9.5px;color:var(--dim);letter-spacing:.03em;margin-top:2px;overflow:hidden;text-overflow:ellipsis}
+  .c-num{font-family:"Cascadia Mono",Consolas,monospace;font-size:11px;color:#cfe6ff;text-align:right;white-space:nowrap}
+  .c-act{text-align:right}
   .mname{flex:1;min-width:0;font-size:12px;color:#e8f4ff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .mname small{display:block;font-size:10px;color:var(--dim);letter-spacing:.04em;margin-top:2px;overflow:hidden;text-overflow:ellipsis}
-  .mfit{font-size:10px;letter-spacing:.06em;padding:3px 8px;border:1px solid var(--line);white-space:nowrap}
+  .mfit{font-size:10px;letter-spacing:.06em;padding:3px 8px;border:1px solid var(--line);white-space:nowrap;display:inline-block}
   .mfit.ok{color:var(--ok);border-color:rgba(92,242,192,.4)}
   .mfit.tight{color:var(--gold);border-color:rgba(255,210,122,.4)}
   .mfit.over{color:var(--err);border-color:rgba(255,107,138,.4)}
   .mfit.unknown{color:var(--dim)}
+  /* recommendation card */
+  .reco{border:1px solid rgba(255,210,122,.35);background:linear-gradient(150deg,rgba(44,34,16,.55),rgba(10,16,30,.85));padding:12px 14px}
+  .reco-head{display:flex;align-items:baseline;gap:12px;margin-bottom:8px}
+  .reco-head .rt{font-size:11.5px;letter-spacing:.24em;color:var(--gold)}
+  .reco-head .rh{font-size:10px;color:var(--dim);letter-spacing:.05em}
+  .reco-body{display:flex;flex-wrap:wrap;gap:8px}
+  .pick{display:flex;flex-direction:column;gap:3px;padding:8px 11px;border:1px solid rgba(111,242,255,.18);background:rgba(6,10,20,.6);min-width:190px}
+  .pick.primary{border-color:rgba(255,210,122,.55);background:rgba(46,34,12,.45)}
+  .pick b{font-size:12.5px;color:#f4f7ff;font-weight:500}
+  .pick span{font-size:10px;color:var(--dim);letter-spacing:.04em}
+  .pick .tier{font-size:9px;letter-spacing:.2em;color:var(--cyan)}
+  .pick.primary .tier{color:var(--gold)}
+  .reco-actions{display:flex;gap:8px;margin-top:9px}
   .mini{font-size:10px;letter-spacing:.1em;padding:5px 10px;cursor:pointer;font-family:inherit;
         color:var(--cyan);border:1px solid rgba(111,242,255,.4);background:rgba(111,242,255,.06)}
   .mini:hover{background:rgba(111,242,255,.16)}
@@ -382,12 +404,21 @@
     </div>
 
     <div class="tabpane" id="paneLocal">
-      <div class="hintline mono">把 <b>.gguf</b> 放進上面的資料夾（可含子資料夾），按「重新整理」就會出現；點「使用」會切換模型並自動重啟服務。</div>
+      <div class="reco" id="recoCard">
+        <div class="reco-head">
+          <span class="rt">本機建議</span>
+          <span class="rh mono" id="recoHw">偵測中…</span>
+        </div>
+        <div class="reco-body" id="recoBody"></div>
+        <div class="reco-actions">
+          <button class="mini" id="btnRecoSearch">用這個規格搜尋</button>
+        </div>
+      </div>
       <div style="display:flex;gap:10px;align-items:center">
         <button class="mini" id="btnRefresh">重新整理</button>
         <span class="hintline mono" id="localMeta">—</span>
       </div>
-      <div class="mlist" id="localList"><div class="empty">掃描中…</div></div>
+      <div class="mtable" id="localList"></div>
     </div>
 
     <div class="tabpane hidden" id="paneSearch">
@@ -570,7 +601,7 @@ $("btnTest").onclick  = () => { act("/api/selftest"); };
 
 /* ---------- model library ---------- */
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
-const LIB = { hf: [], filters: { provider: "all", params: "all", quant: "all" }, dlTimer: null, dlDone: false };
+const LIB = { hf: [], filters: { provider: "all", params: "all", quant: "all" }, dlTimer: null, dlDone: false, reco: null };
 
 const PROVIDERS = [["all","全部"],["Qwen","Qwen"],["DeepSeek","DeepSeek"],["Llama","Llama"],["Gemma","Gemma"],["Mistral","Mistral"],["GLM","GLM"],["其他","其他"]];
 const PARAM_BUCKETS = [["all","全部"],["s","≤4B"],["m","7–9B"],["l","13–14B"],["xl","27–32B"],["xxl","70B+"]];
@@ -605,6 +636,7 @@ function buildChips(hostId, options, key) {
 function libOpen() {
   $("libModal").classList.add("show");
   refreshLocal();
+  loadRecommend();
   if (!LIB.dlTimer) LIB.dlTimer = setInterval(pollDownload, 1000);
   pollDownload();
 }
@@ -619,25 +651,58 @@ function libTab(name) {
   });
 }
 
+const LOCAL_HEAD = `<div class="mhead"><span>模型名稱</span><span class="c-num">大小</span><span class="c-num">參數</span><span class="c-num">量化</span><span>顯存評估</span><span class="c-act">操作</span></div>`;
+
+async function loadRecommend() {
+  try {
+    const d = await (await fetch("/api/recommend", { cache: "no-store" })).json();
+    LIB.reco = d;
+    const hw = d.hardware || {};
+    $("recoHw").textContent = `${hw.gpu || "未知 GPU"} · ${hw.vram_gb || "?"} GB 顯存 · 上下文 ${d.ctx} · 可用權重 ${d.weights_budget_gb} GB`;
+    const body = $("recoBody");
+    body.innerHTML = "";
+    (d.picks || []).forEach((p, i) => {
+      const el = document.createElement("div");
+      el.className = "pick" + (i === 0 ? " primary" : "");
+      el.innerHTML = `<span class="tier">${esc(p.tier)}</span>
+        <b>${p.params_b}B · ${esc(p.quant)}</b>
+        <span>約 ${p.gb} GB · 餘裕 ${p.headroom_gb} GB</span>`;
+      body.appendChild(el);
+    });
+    if (!(d.picks || []).length) {
+      body.innerHTML = '<div class="pick"><b>偵測不到顯存</b><span>請手動挑選模型</span></div>';
+    }
+  } catch (e) {
+    $("recoHw").textContent = "偵測失敗：" + e.message;
+  }
+}
+
 async function refreshLocal() {
-  $("localList").innerHTML = '<div class="empty">掃描中…</div>';
+  $("localList").innerHTML = LOCAL_HEAD + '<div class="empty">掃描中…</div>';
   try {
     const d = await (await fetch("/api/models", { cache: "no-store" })).json();
     $("libDir").textContent = d.dir;
     const items = d.items || [];
     $("localMeta").textContent = `${items.length} 個 GGUF · GPU ${d.gpu_total_gb} GB · 目前上下文 ${d.ctx}`;
-    if (!items.length) { $("localList").innerHTML = '<div class="empty">這個資料夾還沒有 .gguf 檔，從「Hugging Face 搜尋」下載一個吧。</div>'; return; }
-    $("localList").innerHTML = "";
+    if (!items.length) {
+      $("localList").innerHTML = LOCAL_HEAD + '<div class="empty">這個資料夾還沒有 .gguf 檔，從「Hugging Face 搜尋」下載一個吧。</div>';
+      return;
+    }
+    const top = (LIB.reco && (LIB.reco.picks || [])[0]) || null;
+    $("localList").innerHTML = LOCAL_HEAD;
     items.forEach(m => {
-      const row = document.createElement("div");
-      row.className = "mrow";
       const fit = m.fit || {};
+      const star = top && String(m.params) === String(top.params_b) + "B" ? " ★" : "";
+      const row = document.createElement("div");
+      row.className = "mtr" + (m.active ? " reco" : "");
       row.innerHTML = `
-        <div class="mname">${esc(m.name)}<small>${esc(m.rel)} · ${m.gb} GB · ${esc(m.params)} · ${esc(m.quant)}${m.projector ? " · 視覺投影" : ""}</small></div>
-        <span class="mfit ${fit.level || "unknown"}">${esc(fit.label || "")}${fit.need ? " · 需約 " + fit.need + " GB" : ""}</span>
-        <button class="mini ${m.active ? "use" : ""}" ${m.active ? "disabled" : ""}>${m.active ? "使用中" : "使用"}</button>`;
-      const btn = row.querySelector("button");
-      btn.onclick = async () => {
+        <span class="c-name">${esc(m.name)}${star}<small>${esc(m.rel)}${m.projector ? " · 視覺投影" : ""}</small></span>
+        <span class="c-num">${m.gb} GB</span>
+        <span class="c-num">${esc(m.params)}</span>
+        <span class="c-num">${esc(m.quant)}</span>
+        <span><span class="mfit ${fit.level || "unknown"}">${esc(fit.label || "")}${fit.need ? " · " + fit.need + " GB" : ""}</span></span>
+        <span class="c-act"><button class="mini ${m.active ? "use" : ""}" ${m.active ? "disabled" : ""}>${m.active ? "使用中" : "使用"}</button></span>`;
+      row.querySelector("button").onclick = async () => {
         if (!confirm(`切換到 ${m.name}？\n模型會重新載入（約 10–30 秒）。`)) return;
         toast("切換模型中…");
         const r = await (await fetch(`/api/select?path=${encodeURIComponent(m.path)}`, { method: "POST" })).json();
@@ -647,7 +712,7 @@ async function refreshLocal() {
       $("localList").appendChild(row);
     });
   } catch (e) {
-    $("localList").innerHTML = `<div class="empty">讀取失敗：${esc(e.message)}</div>`;
+    $("localList").innerHTML = LOCAL_HEAD + `<div class="empty">讀取失敗：${esc(e.message)}</div>`;
   }
 }
 
@@ -676,13 +741,17 @@ function renderHf() {
   $("hfList").innerHTML = "";
   list.forEach(repo => {
     const row = document.createElement("div");
-    row.className = "mrow";
+    row.className = "mtr hf";
     row.innerHTML = `
-      <div class="mname">${esc(repo.id)}<small>${esc(repo.family)} · ${esc(repo.params)} · ⬇ ${repo.downloads} · ★ ${repo.likes} · ${esc(repo.updated)}</small></div>
-      <button class="mini">查看權重</button>`;
+      <span class="c-name">${esc(repo.id)}<small>${esc(repo.family)} · ${esc(repo.params)} · ${esc(repo.updated)}</small></span>
+      <span class="c-num">⬇ ${repo.downloads}</span>
+      <span class="c-num">★ ${repo.likes}</span>
+      <span class="c-act"><button class="mini">查看權重</button></span>`;
     const btn = row.querySelector("button");
     const holder = document.createElement("div");
-    holder.style.gridColumn = "1 / -1";
+    holder.style.display = "flex";
+    holder.style.flexDirection = "column";
+    holder.style.gap = "4px";
     btn.onclick = async () => {
       btn.disabled = true; btn.textContent = "載入中…";
       try {
@@ -691,12 +760,14 @@ function renderHf() {
         holder.innerHTML = "";
         (d.items || []).forEach(f => {
           const line = document.createElement("div");
-          line.className = "mrow";
-          line.style.margin = "4px 0 4px 18px";
+          line.className = "mtr hff";
+          line.style.marginLeft = "18px";
           line.innerHTML = `
-            <div class="mname">${esc(f.name)}<small>${f.gb} GB · ${esc(f.quant)} · ${esc(f.params)}</small></div>
-            <span class="mfit ${f.fit.level}">${esc(f.fit.label)}${f.fit.need ? " · 需約 " + f.fit.need + " GB" : ""}</span>
-            <button class="mini">下載</button>`;
+            <span class="c-name">${esc(f.name)}<small>${esc(f.params)}</small></span>
+            <span class="c-num">${f.gb} GB</span>
+            <span class="c-num">${esc(f.quant)}</span>
+            <span><span class="mfit ${f.fit.level}">${esc(f.fit.label)}${f.fit.need ? " · " + f.fit.need + " GB" : ""}</span></span>
+            <span class="c-act"><button class="mini">下載</button></span>`;
           line.querySelector("button").onclick = async () => {
             if (!confirm(`下載 ${f.name}（${f.gb} GB）到模型資料夾？`)) return;
             const r = await (await fetch(`/api/hf/download?repo=${encodeURIComponent(repo.id)}&file=${encodeURIComponent(f.name)}`, { method: "POST" })).json();
@@ -753,6 +824,12 @@ $("libModal").addEventListener("click", e => { if (e.target.id === "libModal") l
   $("tab" + t).onclick = () => libTab(t.toLowerCase());
 });
 $("btnRefresh").onclick = refreshLocal;
+$("btnRecoSearch").onclick = () => {
+  const hint = (LIB.reco && LIB.reco.query_hint) || "qwen3.5 9b";
+  libTab("search");
+  $("hfQ").value = hint;
+  hfSearch();
+};
 $("hfGo").onclick = hfSearch;
 $("hfQ").addEventListener("keydown", e => { if (e.key === "Enter") hfSearch(); });
 $("dlCancel").onclick = async () => {
