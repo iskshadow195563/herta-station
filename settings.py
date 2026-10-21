@@ -32,6 +32,8 @@ DEFAULTS = {
         "port": int(os.environ.get("HERTA_PORT", "11433")),
         "apiKey": os.environ.get("HERTA_API_KEY", ""),
         "ngl": int(os.environ.get("HERTA_NGL", "99")),
+        "anthropicEnabled": True,
+        "anthropicPort": int(os.environ.get("HERTA_ANTHROPIC_PORT", "11435")),
     },
 }
 
@@ -85,6 +87,9 @@ def validate(data):
         "port": _clamp_int(srv.get("port"), 1024, 65535, DEFAULTS["server"]["port"]),
         "apiKey": str(srv.get("apiKey", "") or "").strip(),
         "ngl": _clamp_int(srv.get("ngl"), 0, 999, DEFAULTS["server"]["ngl"]),
+        "anthropicEnabled": bool(srv.get("anthropicEnabled", True)),
+        "anthropicPort": _clamp_int(srv.get("anthropicPort"), 1024, 65535,
+                                    DEFAULTS["server"]["anthropicPort"]),
     }
     return {"ui": ui, "server": srv}
 

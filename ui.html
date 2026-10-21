@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
@@ -583,6 +583,10 @@
       <div class="legend"><span>VRAM <b class="mono" id="vramText">—</b></span><span class="mono" id="gpuName">—</span></div>
     </div>
     <div class="lanrow mono">
+      <span class="lanlabel">ANTHROPIC</span>
+      <span id="vAnthropic">—</span>
+    </div>
+    <div class="lanrow mono">
       <span class="lanlabel">LAN</span>
       <span id="vLan">—</span>
       <span class="keybadge" id="keyBadge">—</span>
@@ -597,7 +601,7 @@
 
 <footer>
   <span class="quote" id="quote">模擬宇宙已就緒，人偶，別讓我等太久。</span>
-  <span class="mono">llama.cpp b11756 · CUDA 13.4 · sm_120 · <span id="footNote">僅提供 OpenAI 格式（無 Anthropic /v1/messages）</span></span>
+  <span class="mono">llama.cpp b11756 · CUDA 13.4 · sm_120 · <span id="footNote">OpenAI /v1 + Anthropic /v1/messages</span></span>
 </footer>
 
 <div class="modal" id="libModal">
@@ -733,6 +737,12 @@
         <label class="setrow"><span>API Key</span>
           <input type="text" id="setKey" placeholder="留空 = 不驗證" autocomplete="off">
         </label>
+        <label class="setrow"><span>Anthropic /v1/messages</span>
+          <input type="checkbox" id="setAnth">
+        </label>
+        <label class="setrow"><span>Anthropic 連接埠</span>
+          <input type="number" id="setAnthPort" min="1024" max="65535" step="1">
+        </label>
       </div>
 
       <div class="setactions">
@@ -842,8 +852,9 @@ function paint(s){
   $("vUp").textContent = fmtUp(s.uptime);
   $("vTps").textContent = s.tps ? s.tps.toFixed(1) + " tok/s" : "—";
   $("vLan").textContent = s.endpoint_lan || "—";
+  $("vAnthropic").textContent = s.anthropic_url ? s.anthropic_url + "  ·  /v1/messages" : (s.anthropic_enabled === false ? "off" : "—");
   const kb = $("keyBadge");
-  kb.textContent = s.api_key ? t("KEY_ON") : t("KEY_OFF");
+  kb.textContent = s.api_key ? t("API KEY 已啟用") : t("無 API KEY");
   kb.className = "keybadge " + (s.api_key ? "on" : "warn");
   $("vKv").textContent = (s.ctk || "f16") + " / " + (s.ctv || "f16");
   $("vNp").textContent = (s.parallel ?? 1) + " × " + (s.ctx ?? "—");
@@ -1398,6 +1409,8 @@ function fillSettings(s) {
   $("setBind").value = srv.bind || "0.0.0.0";
   $("setPort").value = srv.port ?? 11433;
   $("setKey").value = srv.apiKey || "";
+  $("setAnth").checked = srv.anthropicEnabled !== false;
+  $("setAnthPort").value = srv.anthropicPort ?? 11435;
 }
 
 function collectSettings() {
@@ -1419,6 +1432,8 @@ function collectSettings() {
       bind: $("setBind").value,
       port: parseInt($("setPort").value, 10),
       apiKey: $("setKey").value.trim(),
+      anthropicEnabled: $("setAnth").checked,
+      anthropicPort: parseInt($("setAnthPort").value, 10),
     },
   };
 }

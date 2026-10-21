@@ -19,7 +19,7 @@ Running a 27B model on a 16 GB card through Ollama left ~30 % of the layers on t
 - **Live log** of `llama-server` with warning/error colouring.
 - **Model library**: scans a `models/` folder for GGUF files, shows fit/VRAM estimates, and hot-swaps the active model.
 - **Hugging Face search** built in: search any model name, filter by vendor / parameter count / quantisation, list the repo's GGUF files with sizes, and download one straight into the library (progress bar, auto-selects when done).
-- **OpenAI-compatible endpoint** on `0.0.0.0:11433` (LAN reachable, optional bearer key); the control plane stays on `127.0.0.1:8899`.
+- **OpenAI-compatible endpoint** on `0.0.0.0:11433` and an **Anthropic Messages** shim (`/v1/messages`) on `0.0.0.0:11435` — both LAN reachable, optional bearer key; the control plane stays on `127.0.0.1:8899`.
 - **Settings panel**: UI zoom 80–135 %, background animation toggle, and the launch parameters (context, KV precision, parallel slots, GPU layers, bind address, port, API key) — saved to `settings.json` and applied on the next model load.
 - Ships as a **12 MB one-file EXE** (PyInstaller + pywebview/WebView2) — no Python, no browser tab.
 
@@ -153,6 +153,35 @@ There is no Anthropic `/v1/messages` route.
 Thinking models usually put reasoning in `message.reasoning_content`; pass `"chat_template_kwargs": {"enable_thinking": false}` to get a plain answer only.
 
 When you expose the endpoint on a LAN, only the model port is reachable — 8899 (start/stop) stays bound to loopback.
+### Anthropic Messages API
+
+llama.cpp only speaks the OpenAI dialect, so the app runs a small shim that accepts Anthropic requests and translates them (including SSE streaming, tool use and thinking) onto the local model:
+
+```
+Base URL : http://127.0.0.1:11435        (LAN: http://<lan-ip>:11435)
+POST     : /v1/messages, /v1/messages/count_tokens
+Auth     : x-api-key or Authorization: Bearer — only enforced when HERTA_API_KEY is set
+```
+
+```bash
+curl http://127.0.0.1:11435/v1/messages \
+  -H "content-type: application/json" -H "x-api-key: local" \
+  -d '{"model":"local","max_tokens":128,"messages":[{"role":"user","content":"hi"}]}'
+```
+
+Point Claude Code (or any Anthropic SDK) at it:
+
+```bat
+set ANTHROPIC_BASE_URL=http://127.0.0.1:11435
+set ANTHROPIC_API_KEY=local
+```
+
+- 	hinking: {type: "enabled", budget_tokens: N} maps onto the model's reasoning effort (low/medium/high); without it thinking is switched off, so plain clients get plain answers.
+- Tool definitions (	ools[].input_schema) become OpenAI function tools, and 	ool_calls come back as 	ool_use blocks with parsed JSON input.
+- Turn it off or change the port in 設定 → Anthropic /v1/messages.
+
+![Anthropic endpoint on the dashboard](docs/anthropic.png)
+
 
 ## The 16 GB VRAM cliff (RTX 5080, Qwen3.8-27B Q3_K_XL)
 

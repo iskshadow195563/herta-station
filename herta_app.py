@@ -62,6 +62,9 @@ def main() -> None:
         threading.Thread(target=httpd.serve_forever, daemon=True).start()
         url = f"http://{server.HOST}:{port}/"
 
+    # Anthropic-compatible /v1/messages shim (own port, same underlying model API)
+    server.start_anthropic_proxy()
+
     webview.create_window(
         TITLE,
         url,

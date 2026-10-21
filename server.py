@@ -21,6 +21,7 @@ import urllib.parse
 import urllib.request
 import models
 import settings as appsettings
+import anthropic_proxy
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 # ui.html lives next to the script, or inside the PyInstaller bundle
@@ -297,6 +298,38 @@ def selftest():
 
 
 # --------------------------------------------------------------------------- #
+# anthropic shim
+# --------------------------------------------------------------------------- #
+_anthropic = {"server": None, "port": 0, "error": ""}
+
+
+def start_anthropic_proxy(restart=False):
+    """Run the Anthropic /v1/messages shim in front of llama-server."""
+    if _anthropic["server"] is not None and not restart:
+        return
+    if restart and _anthropic["server"] is not None:
+        try:
+            _anthropic["server"].shutdown()
+            _anthropic["server"].server_close()
+        except Exception:
+            pass
+        _anthropic["server"] = None
+    if not CONF["server"].get("anthropicEnabled", True):
+        _anthropic["port"] = 0
+        return
+    port = CONF["server"].get("anthropicPort", 11435)
+    try:
+        proxy = anthropic_proxy.AnthropicProxy(HOST, PORT, current_alias(), API_KEY)
+        _anthropic["server"] = anthropic_proxy.serve(proxy, BIND, port)
+        _anthropic["port"] = port
+        _anthropic["error"] = ""
+    except Exception as exc:
+        _anthropic["server"] = None
+        _anthropic["port"] = 0
+        _anthropic["error"] = str(exc)
+
+
+# --------------------------------------------------------------------------- #
 # settings
 # --------------------------------------------------------------------------- #
 def apply_settings(patch):
@@ -312,6 +345,7 @@ def apply_settings(patch):
     PORT = srv["port"]
     API_KEY = srv["apiKey"]
     NGL = srv["ngl"]
+    start_anthropic_proxy(restart=True)
     running = _health() or _alive()
     return {"ok": True, "settings": CONF, "restart_required": running}
 
@@ -366,6 +400,10 @@ def status():
         "error": _last_error,
         "endpoint": f"http://{HOST}:{PORT}/v1",
         "endpoint_lan": f"http://{lan}:{PORT}/v1",
+        "anthropic_url": (f"http://{lan}:{_anthropic['port']}" if _anthropic["port"] else ""),
+        "anthropic_port": _anthropic["port"],
+        "anthropic_enabled": CONF["server"].get("anthropicEnabled", True),
+        "anthropic_error": _anthropic["error"],
     }
 
 
