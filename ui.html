@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
@@ -288,6 +288,193 @@
   .setrow b{width:52px;text-align:right;color:var(--cyan);font-size:11px}
   .setrow input[type=checkbox]{width:16px;height:16px;accent-color:#6ff2ff}
   .setactions{display:flex;gap:8px;flex-wrap:wrap}
+
+  /* ---------- theme picker ---------- */
+  .themeGrid{display:flex;gap:8px;flex:1}
+  .themeCard{flex:1;display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:8px;
+    border:1px solid var(--line);background:rgba(8,14,26,.6);cursor:pointer;font-family:inherit}
+  .themeCard b{font-size:11px;color:#eaf7ff;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  .themeCard small{font-size:9px;color:var(--dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  .themeCard .sw{width:100%;height:22px;display:block;border:1px solid rgba(255,255,255,.18)}
+  .sw-herta{background:linear-gradient(135deg,#0a1226,#12315c 60%,#6ff2ff)}
+  .sw-ollama{background:linear-gradient(135deg,#ffffff,#f1f1f3 60%,#111111)}
+  .sw-xp{background:linear-gradient(180deg,#0a246a,#3a6ea5 55%,#d4d0c8)}
+  .themeCard.active{outline:1px solid var(--cyan);border-color:var(--cyan);box-shadow:0 0 12px rgba(111,242,255,.25)}
+
+  /* ================= theme: ollama (light, minimal) ================= */
+  body.theme-ollama{background:#f7f7f8;color:#1f2328;font-family:Inter,"Segoe UI",system-ui,sans-serif}
+  body.theme-ollama #stars,body.theme-ollama .grid-overlay,body.theme-ollama .vignette{display:none}
+  body.theme-ollama header{border-bottom:1px solid #e5e5e5}
+  body.theme-ollama h1{color:#111;text-shadow:none;letter-spacing:.18em}
+  body.theme-ollama .brand p,body.theme-ollama .row .k,body.theme-ollama .panel-head .mono,
+  body.theme-ollama .hintline,body.theme-ollama .empty,body.theme-ollama footer,body.theme-ollama .core-label .sub{color:#6b7280}
+  body.theme-ollama .sigil{border-color:#d9d9de;background:#fff;box-shadow:none}
+  body.theme-ollama .panel{background:#fff;border:1px solid #e6e6e9;border-radius:14px;clip-path:none;box-shadow:0 1px 2px rgba(16,24,40,.06)}
+  body.theme-ollama .panel::before,body.theme-ollama .panel::after{display:none}
+  body.theme-ollama .tag{color:#111}
+  body.theme-ollama .tag::before{background:#111;box-shadow:none}
+  body.theme-ollama .badge,body.theme-ollama .libbtn{color:#374151;border-color:#d7d7dc;background:#fafafa}
+  body.theme-ollama .libbtn:hover{background:#f0f0f2;box-shadow:none}
+  body.theme-ollama .btn{background:#fff;border:1px solid #d7d7dc;border-radius:10px;clip-path:none;color:#1f2328}
+  body.theme-ollama .btn:hover:not(:disabled){background:#f5f5f6;box-shadow:none;transform:none}
+  body.theme-ollama .btn.primary{background:#111;border-color:#111;color:#fff}
+  body.theme-ollama .btn.danger{color:#b42318;border-color:#f0c9c5}
+  body.theme-ollama .btn.ghost{color:#374151}
+  body.theme-ollama .row{border-bottom:1px solid #efeff1}
+  body.theme-ollama .row .v{color:#111}
+  body.theme-ollama .vram .bar{background:#f1f1f3;border-color:#e6e6e9}
+  body.theme-ollama .vram .fill{background:linear-gradient(90deg,#111,#666)}
+  body.theme-ollama .vram .ticks{display:none}
+  body.theme-ollama .log{background:#fff;border:1px solid #ececef;color:#374151;box-shadow:none}
+  body.theme-ollama .log .w{color:#b45309}body.theme-ollama .log .e{color:#b42318}body.theme-ollama .log .ok{color:#067647}
+  body.theme-ollama .core-label .state{color:#111;text-shadow:none}
+  body.theme-ollama .core-label .tick{color:#b45309}
+  body.theme-ollama .ring{stroke:#e3e3e8}body.theme-ollama .ring.arc{stroke:#111}body.theme-ollama .ring.arc2{stroke:#9ca3af}
+  body.theme-ollama .ring.dash{stroke:#c9c9d0}
+  body.theme-ollama .hex{stroke:#111;fill:rgba(0,0,0,.02);filter:none}
+  body.theme-ollama .chip .dot{background:#9ca3af}
+  body.theme-ollama .modal{background:rgba(15,23,42,.28)}
+  body.theme-ollama .modal-card{background:#fff;border:1px solid #e6e6e9;clip-path:none;border-radius:16px;box-shadow:0 20px 60px rgba(16,24,40,.18)}
+  body.theme-ollama .modal-head .dir{color:#6b7280}
+  body.theme-ollama .modal-head .x{color:#6b7280;border-color:#e6e6e9}
+  body.theme-ollama .tabs{border-bottom:1px solid #ececef}
+  body.theme-ollama .tab{color:#6b7280;letter-spacing:.12em}
+  body.theme-ollama .tab.active{color:#111;border-color:#111;background:#f3f3f5}
+  body.theme-ollama .chip2{color:#374151;border-color:#dcdce1;background:#fff}
+  body.theme-ollama .chip2.active{color:#fff;background:#111;border-color:#111}
+  body.theme-ollama .searchbar input,body.theme-ollama .setrow input[type=number],
+  body.theme-ollama .setrow input[type=text],body.theme-ollama .setrow select{background:#fff;border-color:#dcdce1;color:#111}
+  body.theme-ollama .mhead{background:#fff;color:#6b7280;border-bottom:1px solid #ececef}
+  body.theme-ollama .mtr{background:#fff;border-color:#ececef}
+  body.theme-ollama .mtr:hover{background:#fafafa;border-color:#dcdce1}
+  body.theme-ollama .c-name{color:#111}body.theme-ollama .c-num{color:#374151}
+  body.theme-ollama .mfit{color:#374151;border-color:#dcdce1}
+  body.theme-ollama .mfit.ok{color:#067647;border-color:#abefc6}
+  body.theme-ollama .mfit.tight{color:#b54708;border-color:#f9dbaf}
+  body.theme-ollama .mfit.over{color:#b42318;border-color:#f0c9c5}
+  body.theme-ollama .mini{color:#1f2328;border-color:#d7d7dc;background:#fff}
+  body.theme-ollama .mini.use{color:#fff;background:#111;border-color:#111}
+  body.theme-ollama .reco{background:#fafafa;border-color:#e6e6e9}
+  body.theme-ollama .reco-head .rt{color:#111}
+  body.theme-ollama .pick{background:#fff;border-color:#e6e6e9}
+  body.theme-ollama .pick.primary{border-color:#111;background:#f7f7f8}
+  body.theme-ollama .pick .tier{color:#6b7280}body.theme-ollama .pick.primary .tier{color:#111}
+  body.theme-ollama .pick b{color:#111}body.theme-ollama .pick span{color:#6b7280}
+  body.theme-ollama .setgroup{background:#fbfbfc;border-color:#ececef}
+  body.theme-ollama .settitle{color:#111}
+  body.theme-ollama .setrow>span{color:#6b7280}
+  body.theme-ollama .toast{background:#fff;border-color:#e6e6e9;color:#111;box-shadow:0 12px 36px rgba(16,24,40,.16)}
+  body.theme-ollama footer{border-top:1px solid #ececef}
+  body.theme-ollama .dlbars{background:#f1f1f3;border-color:#e6e6e9}
+  body.theme-ollama .dlbars>.fill{background:#111}
+  body.theme-ollama .themeCard{border-color:#e6e6e9;background:#fff}
+  body.theme-ollama .themeCard b{color:#111}body.theme-ollama .themeCard small{color:#6b7280}
+  body.theme-ollama .themeCard.active{outline-color:#111;border-color:#111;box-shadow:none}
+
+  /* ================= theme: windows xp ================= */
+  body.theme-xp{background:linear-gradient(180deg,#12408f,#2f6ec4 38%,#5b9bd5);color:#000;
+    font-family:Tahoma,"MS Sans Serif",Arial,sans-serif}
+  body.theme-xp #stars,body.theme-xp .grid-overlay,body.theme-xp .vignette{display:none}
+  body.theme-xp header{border-bottom:2px groove #ffffff}
+  body.theme-xp h1{color:#fff;text-shadow:1px 1px 0 #000;font-size:17px;letter-spacing:.08em}
+  body.theme-xp .brand p,body.theme-xp footer{color:#e8f0ff}
+  body.theme-xp .sigil{background:#d4d0c8;border:2px solid;border-color:#fff #404040 #404040 #fff;clip-path:none;box-shadow:none}
+  body.theme-xp .sigil svg{stroke:#003399;animation:none}
+  body.theme-xp .panel{background:#d4d0c8;border:2px solid;border-color:#fff #404040 #404040 #fff;
+    border-radius:0;clip-path:none;box-shadow:1px 1px 0 #808080}
+  body.theme-xp .panel::before,body.theme-xp .panel::after{display:none}
+  body.theme-xp .panel-head{margin:-14px -16px 10px;padding:4px 8px;background:linear-gradient(180deg,#0a246a,#3a6ea5 70%,#4f8ad8);border-bottom:1px solid #092a63}
+  body.theme-xp .tag{color:#fff;letter-spacing:.12em}
+  body.theme-xp .tag::before{background:#fff;box-shadow:none;width:4px;height:12px}
+  body.theme-xp .panel-head .mono{color:#cfe0ff}
+  body.theme-xp .row{border-bottom:1px dotted #808080}
+  body.theme-xp .row .k,body.theme-xp .row .v{color:#000}
+  body.theme-xp .btn{background:#d4d0c8;border:2px solid;border-color:#fff #404040 #404040 #fff;border-radius:0;
+    clip-path:none;color:#000;font-family:Tahoma;font-size:12px;letter-spacing:0}
+  body.theme-xp .btn:hover:not(:disabled){background:#e4e1db;box-shadow:none;transform:none}
+  body.theme-xp .btn:active:not(:disabled){border-color:#404040 #fff #fff #404040}
+  body.theme-xp .btn.primary{background:#d4d0c8;color:#000;border-color:#fff #404040 #404040 #fff}
+  body.theme-xp .btn.danger{color:#800000}
+  body.theme-xp .btn.ghost{color:#000}
+  body.theme-xp .libbtn{background:#d4d0c8;border:2px solid;border-color:#fff #404040 #404040 #fff;border-radius:0;clip-path:none;color:#000}
+  body.theme-xp .libbtn:hover{box-shadow:none;background:#e4e1db}
+  body.theme-xp .badge{background:#ece9d8;border:1px solid #808080;color:#000}
+  body.theme-xp .chip{background:#ece9d8;border:1px solid #808080;color:#000}
+  body.theme-xp .vram .bar{background:#fff;border:2px inset #808080}
+  body.theme-xp .vram .fill{background:#0a246a}
+  body.theme-xp .vram .ticks{display:none}
+  body.theme-xp .log{background:#fff;color:#000;border:2px inset #808080;font-family:"Courier New",monospace;box-shadow:none}
+  body.theme-xp .log .w{color:#8a4b00}body.theme-xp .log .e{color:#a80000}body.theme-xp .log .ok{color:#006400}
+  body.theme-xp .core-label .state{color:#003399;text-shadow:none}
+  body.theme-xp .core-label .sub,body.theme-xp .core-label .tick{color:#000}
+  body.theme-xp .ring{stroke:#9a9a9a}body.theme-xp .ring.arc{stroke:#0a246a}body.theme-xp .ring.arc2{stroke:#2a5f9e}
+  body.theme-xp .ring.dash{stroke:#666}
+  body.theme-xp .hex{stroke:#003399;fill:#ece9d8;filter:none}
+  body.theme-xp .modal{background:rgba(0,0,0,.35)}
+  body.theme-xp .modal-card{background:#d4d0c8;border:2px solid;border-color:#fff #404040 #404040 #fff;
+    border-radius:0;clip-path:none;box-shadow:2px 2px 0 #000}
+  body.theme-xp .modal-head{margin:-18px -20px 8px;padding:5px 8px;
+    background:linear-gradient(180deg,#0a246a,#3a6ea5 70%,#4f8ad8);color:#fff}
+  body.theme-xp .modal-head .tag{color:#fff}
+  body.theme-xp .modal-head .dir{color:#cfe0ff}
+  body.theme-xp .modal-head .x{background:#d4d0c8;border:2px solid;border-color:#fff #404040 #404040 #fff;color:#000;border-radius:0}
+  body.theme-xp .tabs{border-bottom:1px solid #808080}
+  body.theme-xp .tab{color:#000;border:1px solid transparent;border-radius:0;background:none;letter-spacing:.08em}
+  body.theme-xp .tab.active{background:#ece9d8;border:1px solid #808080;border-bottom-color:#ece9d8}
+  body.theme-xp .chip2{background:#d4d0c8;border:2px solid;border-color:#fff #404040 #404040 #fff;color:#000;border-radius:0}
+  body.theme-xp .chip2.active{background:#0a246a;color:#fff;border-color:#092a63 #6f9bd6 #6f9bd6 #092a63}
+  body.theme-xp .searchbar input,body.theme-xp .setrow input[type=number],
+  body.theme-xp .setrow input[type=text],body.theme-xp .setrow select{background:#fff;border:2px inset #808080;color:#000;border-radius:0}
+  body.theme-xp .mhead{background:#ece9d8;color:#000;border-bottom:1px solid #808080}
+  body.theme-xp .mtr{background:#ece9d8;border:1px solid #9a9a9a}
+  body.theme-xp .mtr:hover{background:#f5f3ea;border-color:#003399}
+  body.theme-xp .c-name,body.theme-xp .c-num{color:#000}
+  body.theme-xp .mfit{background:#fff;border:1px solid #808080;color:#000}
+  body.theme-xp .mini{background:#d4d0c8;border:2px solid;border-color:#fff #404040 #404040 #fff;color:#000;border-radius:0}
+  body.theme-xp .mini.use{background:#0a246a;color:#fff;border-color:#092a63 #6f9bd6 #6f9bd6 #092a63}
+  body.theme-xp .reco{background:#ece9d8;border:2px solid;border-color:#fff #404040 #404040 #fff}
+  body.theme-xp .reco-head .rt{color:#003399}
+  body.theme-xp .pick{background:#fff;border:1px solid #808080}
+  body.theme-xp .pick.primary{background:#fffbe6;border:2px solid #003399}
+  body.theme-xp .pick b{color:#000}body.theme-xp .pick span{color:#444}
+  body.theme-xp .pick .tier,body.theme-xp .pick.primary .tier{color:#003399}
+  body.theme-xp .setgroup{background:#ece9d8;border:2px solid;border-color:#fff #404040 #404040 #fff}
+  body.theme-xp .settitle{color:#003399}
+  body.theme-xp .setrow>span{color:#000}
+  body.theme-xp .toast{background:#ffffe1;border:1px solid #000;color:#000;border-radius:0;box-shadow:2px 2px 0 #808080}
+  body.theme-xp footer{border-top:2px groove #fff}
+  body.theme-xp .dlbars{background:#fff;border:2px inset #808080}
+  body.theme-xp .dlbars>.fill{background:#0a246a}
+  body.theme-xp .themeCard{background:#d4d0c8;border:2px solid;border-color:#fff #404040 #404040 #fff}
+  body.theme-xp .themeCard b{color:#000}body.theme-xp .themeCard small{color:#404040}
+  body.theme-xp .themeCard.active{outline:1px solid #003399;border-color:#003399;box-shadow:none}
+  body.theme-xp .reco-actions .mini,body.theme-xp .setactions .mini{font-family:Tahoma}
+
+  /* shared contrast fixes for the light themes */
+  body.theme-ollama .chip{background:#f3f3f5;border-color:#dcdce1;color:#374151}
+  body.theme-ollama .chip.on .dot{background:#067647;color:#067647}
+  body.theme-ollama .vram .legend{color:#6b7280}
+  body.theme-ollama .vram .legend b{color:#111}
+  body.theme-ollama .hint{color:#6b7280}
+  body.theme-ollama .hint b{color:#111}
+  body.theme-ollama .core-label .sub,body.theme-ollama .core-label .tick{color:#6b7280}
+  body.theme-ollama .keybadge{color:#b45309;border-color:#eadcba}
+  body.theme-ollama .row .k{color:#6b7280}
+
+  body.theme-xp .chip{background:#ece9d8;border:1px solid #808080;color:#000}
+  body.theme-xp .chip .dot{background:#006400;color:#006400}
+  body.theme-xp .vram .legend{color:#000}
+  body.theme-xp .vram .legend b{color:#000}
+  body.theme-xp .hint{color:#000}
+  body.theme-xp .hint b{color:#003399}
+  body.theme-xp .core-label .sub,body.theme-xp .core-label .tick{color:#000}
+  body.theme-xp .keybadge{color:#000;border-color:#808080;background:#ece9d8}
+  body.theme-xp .row .k{color:#000}
+  body.theme-xp .btn:disabled{color:#808080}
+  body.theme-xp .lanrow{color:#000}
+  body.theme-xp .lanrow .lanlabel{color:#003399}
+  body.theme-ollama .lanrow{color:#374151}
+  body.theme-ollama .lanrow .lanlabel{color:#111}
   .mini{font-size:10px;letter-spacing:.1em;padding:5px 10px;cursor:pointer;font-family:inherit;
         color:var(--cyan);border:1px solid rgba(111,242,255,.4);background:rgba(111,242,255,.06)}
   .mini:hover{background:rgba(111,242,255,.16)}
@@ -476,6 +663,13 @@
     <div class="setwrap">
       <div class="setgroup">
         <div class="settitle">介面</div>
+        <div class="setrow"><span>介面風格</span>
+          <div class="themeGrid">
+            <button class="themeCard" data-theme="herta"><i class="sw sw-herta"></i><b>黑塔</b><small>空間站・深色</small></button>
+            <button class="themeCard" data-theme="ollama"><i class="sw sw-ollama"></i><b>極簡白</b><small>Ollama 風・乾淨</small></button>
+            <button class="themeCard" data-theme="xp"><i class="sw sw-xp"></i><b>XP</b><small>2001 復古</small></button>
+          </div>
+        </div>
         <label class="setrow"><span>介面縮放</span>
           <input type="range" id="setScale" min="80" max="135" step="5">
           <b class="mono" id="setScaleVal">100%</b>
@@ -1010,16 +1204,26 @@ buildChips("fQuant", QUANT_BUCKETS, "quant");
 })();
 
 /* ---------- settings ---------- */
-const SET = { current: null, defaults: null };
+const SET = { current: null, defaults: null, theme: "herta" };
+const THEME_IDS = ["herta", "ollama", "xp"];
 
 function applyUi(s) {
   if (!s || !s.ui) return;
+  const t = THEME_IDS.includes(s.ui.theme) ? s.ui.theme : "herta";
+  THEME_IDS.forEach(x => document.body.classList.remove("theme-" + x));
+  document.body.classList.add("theme-" + t);
   document.body.style.zoom = s.ui.scale;
   document.body.classList.toggle("no-anim", !s.ui.animations);
 }
 
+function markThemeCard(theme) {
+  document.querySelectorAll(".themeCard").forEach(c => c.classList.toggle("active", c.dataset.theme === theme));
+}
+
 function fillSettings(s) {
   const ui = s.ui || {}, srv = s.server || {};
+  SET.theme = THEME_IDS.includes(ui.theme) ? ui.theme : "herta";
+  markThemeCard(SET.theme);
   $("setScale").value = Math.round((ui.scale || 1) * 100);
   $("setScaleVal").textContent = Math.round((ui.scale || 1) * 100) + "%";
   $("setAnim").checked = !!ui.animations;
@@ -1045,7 +1249,11 @@ function collectSettings() {
   const sel = $("setCtx").value;
   const ctx = sel === "0" ? parseInt($("setCtxCustom").value || "65536", 10) : parseInt(sel, 10);
   return {
-    ui: { scale: parseInt($("setScale").value, 10) / 100, animations: $("setAnim").checked },
+    ui: {
+      theme: SET.theme,
+      scale: parseInt($("setScale").value, 10) / 100,
+      animations: $("setAnim").checked,
+    },
     server: {
       ctx: ctx,
       ctk: $("setKv").value,
@@ -1105,6 +1313,19 @@ $("setScale").addEventListener("input", e => {
   const v = parseInt(e.target.value, 10);
   $("setScaleVal").textContent = v + "%";
   document.body.style.zoom = v / 100;
+});
+document.querySelectorAll(".themeCard").forEach(card => {
+  card.onclick = () => {
+    SET.theme = card.dataset.theme;
+    markThemeCard(SET.theme);
+    applyUi({
+      ui: {
+        theme: SET.theme,
+        scale: parseInt($("setScale").value, 10) / 100,
+        animations: $("setAnim").checked,
+      },
+    });
+  };
 });
 $("setCtx").addEventListener("change", e => {
   $("setCtxCustom").style.display = e.target.value === "0" ? "" : "none";

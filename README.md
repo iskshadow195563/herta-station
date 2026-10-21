@@ -33,12 +33,25 @@ Click **設定** in the header (or open `http://127.0.0.1:8899/#settings`).
 
 | Group | Fields |
 | --- | --- |
-| 介面 | UI zoom (80–135 %, previewed live as CSS zoom), background animation on/off |
+| 介面 | **theme** (黑塔 / 極簡白 / Windows XP), UI zoom (80–135 %, previewed live as CSS zoom), background animation on/off |
 | 模型服務 | context length, KV cache precision (f16 / q8_0 / q5_1 / q4_0), parallel slots (`-np`), GPU layers (`-ngl`), bind address, port, API key |
 
 - Everything is stored in `settings.json` next to the EXE; the panel wins over the environment variables, which stay as first-run defaults.
 - Changing anything under 模型服務 needs a model reload — the panel says so and offers **儲存並重載模型**.
 - **還原預設** writes the built-in defaults back.
+### Themes
+
+Three skins, picked in 設定 → 介面風格, applied instantly and stored in settings.json:
+
+| Theme | Look |
+| --- | --- |
+| **黑塔** (default) | dark space station, neon cyan/violet, starfield, reactor core |
+| **極簡白** | white cards, grey hairlines, black accents — the Ollama-style minimal look |
+| **Windows XP** | XP blue gradient desktop, grey 3-D panels, gradient title bars, Tahoma, beveled buttons |
+
+![Extreme minimal theme](docs/theme-ollama.png)
+![Windows XP theme](docs/theme-xp.png)
+
 
 ## Model library
 

@@ -18,6 +18,7 @@ SETTINGS_FILE = os.path.join(DATA_DIR, "settings.json")
 
 DEFAULTS = {
     "ui": {
+        "theme": "herta",      # herta | ollama | xp
         "scale": 1.0,          # 0.8 … 1.35, applied as CSS zoom
         "animations": True,    # starfield / pulsing highlights
     },
@@ -35,6 +36,7 @@ DEFAULTS = {
 
 KV_TYPES = {"f16", "q8_0", "q5_1", "q5_0", "q4_1", "q4_0"}
 BINDS = {"0.0.0.0", "127.0.0.1"}
+THEMES = {"herta", "ollama", "xp"}
 
 
 def _merge(base, patch):
@@ -64,7 +66,8 @@ def validate(data):
         scale = float(ui.get("scale", DEFAULTS["ui"]["scale"]))
     except (TypeError, ValueError):
         scale = DEFAULTS["ui"]["scale"]
-    ui = {"scale": round(max(0.8, min(1.35, scale)), 2),
+    ui = {"theme": str(ui.get("theme", "herta")) if str(ui.get("theme", "herta")) in THEMES else "herta",
+          "scale": round(max(0.8, min(1.35, scale)), 2),
           "animations": bool(ui.get("animations", True))}
 
     ctk = str(srv.get("ctk", DEFAULTS["server"]["ctk"]))
