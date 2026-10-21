@@ -17,10 +17,29 @@ Running a 27B model on a 16 GB card through Ollama left ~30 % of the layers on t
 - **Self-test** sends one tiny chat request and reports latency + reply.
 - **Telemetry**: model file, quant, context, GPU layers, KV cache type, PID, uptime, tokens/s, VRAM bar.
 - **Live log** of `llama-server` with warning/error colouring.
+- **Model library**: scans a `models/` folder for GGUF files, shows fit/VRAM estimates, and hot-swaps the active model.
+- **Hugging Face search** built in: search any model name, filter by vendor / parameter count / quantisation, list the repo's GGUF files with sizes, and download one straight into the library (progress bar, auto-selects when done).
 - **OpenAI-compatible endpoint** on `0.0.0.0:11433` (LAN reachable, optional bearer key); the control plane stays on `127.0.0.1:8899`.
 - Ships as a **12 MB one-file EXE** (PyInstaller + pywebview/WebView2) — no Python, no browser tab.
 
 ![LAN endpoint row](docs/lan.png)
+
+## Model library
+
+![Model library](docs/library.png)
+
+Click **模型庫 · MODELS** in the header. Three tabs:
+
+| Tab | What it does |
+| --- | --- |
+| 本機模型 | Lists every `*.gguf` under the models folder (default `<exe dir>\models`, override with `HERTA_MODELS_DIR`). Shows size, params, quant, and whether it fits: needs `weights + 1.9 GB + ctx/1000 × 0.019 GB` of VRAM. **使用** swaps the model and restarts the server (~10–30 s). |
+| Hugging Face 搜尋 | Searches `huggingface.co/api/models?filter=gguf`. Filter chips for vendor (Qwen / DeepSeek / Llama / Gemma / Mistral / GLM), parameter bucket (≤4B, 7–9B, 13–14B, 27–32B, 70B+), and quantisation (Q4–Q8). Each repo expands to its GGUF files with size + fit estimate. |
+| 下載 | Live download progress (percent, GB, MB/s), cancel button. A finished download is written to `models/<owner>__<repo>/` and becomes the active model. |
+
+Dropping a `.gguf` in by hand works too — hit **重新整理**.
+Handy shortcut: opening `http://127.0.0.1:8899/#models` jumps straight into the library.
+
+The default model is whatever `HERTA_MODEL` points at until you pick one in the library; the choice is stored next to the EXE in `active-model.json`.
 
 ## Requirements
 
@@ -56,7 +75,8 @@ The EXE reads the same environment variables; anything unset falls back to the d
 | `HERTA_MODEL` | `D:\ollama-gguf\qwen3.8-27b\Qwen3.8-27B-UD-Q3_K_XL.gguf` | GGUF weights |
 | `HERTA_MMPROJ_PATH` | `…\mmproj-F16.gguf` | vision projector file |
 | `HERTA_MMPROJ` | `0` | `1` loads the projector (costs ~0.9 GB VRAM) |
-| `HERTA_ALIAS` | `qwen3.8-27b-q3xl` | model name reported by `/v1/models` |
+| `HERTA_ALIAS` | derived from file name | model name reported by `/v1/models` |
+| `HERTA_MODELS_DIR` | `<exe dir>\models` | folder the library scans |
 | `HERTA_CTX` | `65536` | context length |
 | `HERTA_PARALLEL` | `1` | parallel slots (`-np`) |
 | `HERTA_FA` | `on` | flash attention |
@@ -101,6 +121,16 @@ When you expose the endpoint on a LAN, only the model port is reachable — 8899
 | 98304 | q4_0 | 15.69 GB | 5 tok/s |
 | 131072 | q4_0 | 15.73 GB | 1.3 tok/s |
 
+### Picking a model for 16 GB
+
+Same card, same 64k context, two models that both stay fully on the GPU:
+
+| model | weights | VRAM | prefill (38k prompt) | generation (short / 38k) |
+| --- | ---: | ---: | ---: | ---: |
+| Qwen3.8-27B UD-Q3_K_XL | 12.24 GB | 15.4 GB | 1.6k tok/s | 48 / 40 tok/s |
+| **Qwen3.5-9B UD-Q6_K_XL** | **8.16 GB** | **10.4 GB** | **5.2k tok/s** | **81 / 70 tok/s** |
+
+The 9B leaves ~5.5 GB of headroom, so it never touches host memory and answers ~2× faster; the 27B is the quality option and sits right at the VRAM cliff.
 That is why the defaults are `-c 65536 -ctk q4_0 -ctv q4_0`: the largest context that still stays under the cliff on a 16 GB card, and the vision projector stays off unless asked for. Keeping the KV cache in RAM (`-nkvo`) does allow 131072, but generation at long context collapses to ~2 tok/s, so it is not a win.
 
 `q5_1` KV is a little more precise but has no native flash-attention kernel in current builds (the log tells you to compile `q5_1-q5_1` into `GGML_CUDA_FA_QUANTS`), and at 64k it pushes VRAM over the cliff — `q4_0` is both faster and smaller here.

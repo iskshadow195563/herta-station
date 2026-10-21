@@ -17,7 +17,9 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.parse
 import urllib.request
+import models
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 # ui.html lives next to the script, or inside the PyInstaller bundle
@@ -27,7 +29,7 @@ DATA_DIR = os.path.dirname(sys.executable) if getattr(sys, "frozen", False) else
 EXE = os.environ.get("HERTA_LLAMA_EXE", r"D:\llama.cpp\b11756\llama-server.exe")
 MODEL = os.environ.get("HERTA_MODEL", r"D:\ollama-gguf\qwen3.8-27b\Qwen3.8-27B-UD-Q3_K_XL.gguf")
 MMPROJ = os.environ.get("HERTA_MMPROJ_PATH", r"D:\ollama-gguf\qwen3.8-27b\mmproj-F16.gguf")
-ALIAS = os.environ.get("HERTA_ALIAS", "qwen3.8-27b-q3xl")
+ALIAS = os.environ.get("HERTA_ALIAS", "")
 HOST = "127.0.0.1"                               # control plane / probes (never exposed)
 BIND = os.environ.get("HERTA_BIND", "0.0.0.0")   # llama-server listen address (LAN reachable)
 API_KEY = os.environ.get("HERTA_API_KEY", "").strip()  # optional bearer token for LAN clients
@@ -39,6 +41,8 @@ CTK = os.environ.get("HERTA_CTK", "q4_0")   # q4_0 KV keeps 64k ctx under the 16
 CTV = os.environ.get("HERTA_CTV", "q4_0")
 # the vision projector costs ~0.9 GB; off by default so 64k context fits in 16 GB
 MMPROJ_ON = os.environ.get("HERTA_MMPROJ", "0").lower() in ("1", "on", "true", "yes")
+# cap on thinking tokens per reply; -1 disables the cap
+REASONING_BUDGET = int(os.environ.get("HERTA_REASONING_BUDGET", "4096"))
 NGL = 99
 UI_PORT = 8899
 
@@ -159,6 +163,19 @@ def _alive():
 # --------------------------------------------------------------------------- #
 # actions
 # --------------------------------------------------------------------------- #
+def current_model():
+    """Active GGUF: whatever the library selection points at, else the env default."""
+    path = models.active_model_path() or MODEL
+    return path
+
+
+def current_alias():
+    if ALIAS:
+        return ALIAS
+    name = os.path.splitext(os.path.basename(current_model()))[0]
+    return re.sub(r"[^A-Za-z0-9._-]+", "-", name).strip("-").lower() or "local-model"
+
+
 def start_model():
     global _proc, _started_at, _last_error
     with _lock:
@@ -170,12 +187,13 @@ def start_model():
 
         if not os.path.exists(EXE):
             return {"ok": False, "message": f"找不到 llama-server.exe: {EXE}"}
-        if not os.path.exists(MODEL):
-            return {"ok": False, "message": f"找不到模型權重: {MODEL}"}
+        model_path = current_model()
+        if not os.path.exists(model_path):
+            return {"ok": False, "message": f"找不到模型權重: {model_path}"}
 
         args = [
-            EXE, "-m", MODEL,
-            "-a", ALIAS,
+            EXE, "-m", model_path,
+            "-a", current_alias(),
             "--host", BIND, "--port", str(PORT),
             "-c", str(CTX), "-ngl", str(NGL),
             "-np", str(PARALLEL),
@@ -184,6 +202,11 @@ def start_model():
         ]
         if API_KEY:
             args += ["--api-key", API_KEY]
+        # hard cap on thinking tokens: without it a long "xhigh" reasoning pass can eat the
+        # whole max_tokens budget and return a reasoning-only reply (no text, no tool call),
+        # which is what breaks DSH sessions. -1 = unlimited.
+        if REASONING_BUDGET >= 0:
+            args += ["--reasoning-budget", str(REASONING_BUDGET)]
         if MMPROJ_ON:
             args += ["--mmproj", MMPROJ]
         if CTK:
@@ -302,9 +325,11 @@ def status():
         "bind": BIND,
         "lan": lan,
         "api_key": bool(API_KEY),
-        "alias": ALIAS,
-        "model": os.path.basename(MODEL),
-        "quant": "UD-Q3_K_XL",
+        "alias": current_alias(),
+        "model": os.path.basename(current_model()),
+        "model_path": current_model(),
+        "quant": models.quant_of(os.path.basename(current_model())),
+        "models_dir": models.MODELS_DIR,
         "ctx": CTX,
         "ngl": NGL,
         "ctk": CTK,
@@ -340,7 +365,8 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(raw)
 
     def do_GET(self):
-        path = self.path.split("?")[0]
+        path, _, query = self.path.partition("?")
+        params = urllib.parse.parse_qs(query)
         if path in ("/", "/index.html"):
             try:
                 with open(os.path.join(RES_DIR, "ui.html"), "rb") as fh:
@@ -349,16 +375,64 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(500, b"ui.html missing", "text/plain; charset=utf-8")
         elif path == "/api/status":
             self._send(200, status())
+        elif path == "/api/models":
+            self._send(200, {
+                "dir": models.MODELS_DIR,
+                "gpu_total_gb": models.gpu_total_gb(),
+                "ctx": CTX,
+                "items": models.scan_local(CTX),
+            })
+        elif path == "/api/hf/search":
+            q = (params.get("q") or [""])[0]
+            try:
+                self._send(200, {"ok": True, "items": models.hf_search(q, params.get("limit", ["30"])[0])})
+            except Exception as exc:
+                self._send(200, {"ok": False, "message": str(exc), "items": []})
+        elif path == "/api/hf/files":
+            repo = (params.get("repo") or [""])[0]
+            try:
+                self._send(200, {"ok": True, "repo": repo, "items": models.hf_files(repo, CTX)})
+            except Exception as exc:
+                self._send(200, {"ok": False, "message": str(exc), "items": []})
+        elif path == "/api/download/status":
+            self._send(200, models.download_state())
         else:
             self._send(404, {"ok": False, "message": "not found"})
 
     def do_POST(self):
-        path = self.path.split("?")[0]
+        path, _, query = self.path.partition("?")
+        params = urllib.parse.parse_qs(query)
+        def _select():
+            target = (params.get("path") or [""])[0]
+            if not target:
+                return {"ok": False, "message": "缺少 path"}
+            try:
+                models.set_active(target)
+            except OSError as exc:
+                return {"ok": False, "message": f"找不到檔案: {exc}"}
+            was_running = _health() or _alive()
+            if was_running:
+                stop_model()
+                time.sleep(1.0)
+                res = start_model()
+                return {"ok": res["ok"], "message": f"已切換模型並重啟：{res['message']}"}
+            return {"ok": True, "message": f"已選擇 {os.path.basename(target)}"}
+
+        def _dl_start():
+            repo = (params.get("repo") or [""])[0]
+            name = (params.get("file") or [""])[0]
+            if not repo or not name:
+                return {"ok": False, "message": "缺少 repo / file"}
+            return models.start_download(repo, name)
+
         routes = {
             "/api/start": start_model,
             "/api/stop": stop_model,
             "/api/purge": purge_all,
             "/api/selftest": selftest,
+            "/api/select": _select,
+            "/api/hf/download": _dl_start,
+            "/api/download/cancel": models.cancel_download,
         }
         fn = routes.get(path)
         if not fn:

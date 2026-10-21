@@ -192,6 +192,71 @@
 
   @keyframes spin{to{transform:rotate(360deg)}}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+
+  /* ---------- model library ---------- */
+  .libbtn{
+    font-size:10.5px;letter-spacing:.18em;padding:6px 12px;color:var(--cyan);cursor:pointer;
+    border:1px solid rgba(111,242,255,.4);background:rgba(111,242,255,.07);font-family:inherit;
+    clip-path:polygon(9px 0,100% 0,100% calc(100% - 9px),calc(100% - 9px) 100%,0 100%,0 9px);
+  }
+  .libbtn:hover{background:rgba(111,242,255,.16);box-shadow:0 0 16px rgba(111,242,255,.25)}
+  .modal{position:fixed;inset:0;z-index:30;display:none;align-items:center;justify-content:center;background:rgba(3,5,12,.74)}
+  .modal.show{display:flex}
+  .modal-card{
+    width:min(1120px,94vw);height:min(780px,92vh);display:flex;flex-direction:column;gap:12px;
+    padding:18px 20px;background:linear-gradient(158deg,#0d1526,#070a14);
+    border:1px solid var(--line-strong);
+    clip-path:polygon(20px 0,100% 0,100% calc(100% - 20px),calc(100% - 20px) 100%,0 100%,0 20px);
+    box-shadow:0 0 60px rgba(0,0,0,.7);
+  }
+  .modal-head{display:flex;align-items:center;gap:14px}
+  .modal-head .dir{font-size:10px;color:var(--dim);letter-spacing:.06em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .modal-head .x{margin-left:auto;background:none;border:1px solid var(--line);color:var(--dim);width:28px;height:28px;cursor:pointer;font-size:12px}
+  .modal-head .x:hover{color:#fff;border-color:var(--line-strong)}
+  .tabs{display:flex;gap:8px;border-bottom:1px solid var(--line);padding-bottom:8px}
+  .tab{background:none;border:1px solid transparent;color:var(--dim);font-size:11.5px;letter-spacing:.2em;padding:7px 14px;cursor:pointer;font-family:inherit}
+  .tab.active{color:var(--cyan);border-color:rgba(111,242,255,.4);background:rgba(111,242,255,.08)}
+  .tabpane{flex:1;min-height:0;display:flex;flex-direction:column;gap:10px}
+  .tabpane.hidden{display:none}
+  .hintline{font-size:10.5px;color:var(--dim);letter-spacing:.06em}
+  .searchbar{display:flex;gap:10px}
+  .searchbar input{
+    flex:1;background:rgba(4,8,18,.9);border:1px solid var(--line);color:var(--text);
+    padding:10px 12px;font-size:12.5px;font-family:inherit;outline:none;
+  }
+  .searchbar input:focus{border-color:var(--line-strong);box-shadow:0 0 14px rgba(111,242,255,.18)}
+  .filters{display:flex;flex-wrap:wrap;gap:14px}
+  .fgroup{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .fgroup .flabel{font-size:9.5px;letter-spacing:.18em;color:var(--dim);margin-right:2px}
+  .chip2{
+    font-size:10px;letter-spacing:.1em;padding:4px 9px;cursor:pointer;color:#bcd6f2;
+    border:1px solid rgba(111,242,255,.18);background:rgba(10,18,34,.8);font-family:inherit;
+  }
+  .chip2.active{color:#04121a;background:var(--cyan);border-color:var(--cyan)}
+  .mlist{flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:6px;padding-right:4px}
+  .mlist::-webkit-scrollbar{width:8px}
+  .mlist::-webkit-scrollbar-thumb{background:rgba(111,242,255,.2);border-radius:8px}
+  .mrow{
+    display:flex;align-items:center;gap:14px;padding:9px 12px;border:1px solid rgba(111,242,255,.12);
+    background:rgba(10,16,30,.7);
+  }
+  .mrow:hover{border-color:rgba(111,242,255,.35);background:rgba(16,26,46,.85)}
+  .mname{flex:1;min-width:0;font-size:12px;color:#e8f4ff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mname small{display:block;font-size:10px;color:var(--dim);letter-spacing:.04em;margin-top:2px;overflow:hidden;text-overflow:ellipsis}
+  .mfit{font-size:10px;letter-spacing:.06em;padding:3px 8px;border:1px solid var(--line);white-space:nowrap}
+  .mfit.ok{color:var(--ok);border-color:rgba(92,242,192,.4)}
+  .mfit.tight{color:var(--gold);border-color:rgba(255,210,122,.4)}
+  .mfit.over{color:var(--err);border-color:rgba(255,107,138,.4)}
+  .mfit.unknown{color:var(--dim)}
+  .mini{font-size:10px;letter-spacing:.1em;padding:5px 10px;cursor:pointer;font-family:inherit;
+        color:var(--cyan);border:1px solid rgba(111,242,255,.4);background:rgba(111,242,255,.06)}
+  .mini:hover{background:rgba(111,242,255,.16)}
+  .mini[disabled]{opacity:.4;cursor:default}
+  .mini.use{color:#04121a;background:var(--cyan);border-color:var(--cyan)}
+  .dlrow{display:flex;justify-content:space-between;font-size:12px;color:#e8f4ff}
+  .dlbars{height:12px;border:1px solid var(--line);background:rgba(0,0,0,.5);overflow:hidden}
+  .dlbars > .fill{height:100%;width:0%;background:linear-gradient(90deg,#3ad7ff,#a77bff);transition:width .3s}
+  .empty{color:var(--dim);font-size:11.5px;padding:18px;text-align:center}
   @media (max-width:1040px){
     body{height:auto;overflow:auto}
     main{grid-template-columns:1fr;grid-template-rows:auto auto 320px}
@@ -219,6 +284,7 @@
     </div>
   </div>
   <div class="headmeta">
+    <button class="libbtn" id="btnLib">模型庫 · MODELS</button>
     <span class="badge mono">OPENAI-COMPATIBLE · /v1</span>
     <div class="chip" id="chipConn"><i class="dot"></i><span id="connText">LINK STANDBY</span></div>
     <div class="mono" style="font-size:9.5px;letter-spacing:.2em;">SECTOR 0 · No.007</div>
@@ -300,6 +366,54 @@
   <span class="quote" id="quote">模擬宇宙已就緒，人偶，別讓我等太久。</span>
   <span class="mono">llama.cpp b11756 · CUDA 13.4 · sm_120 · 僅提供 OpenAI 格式（無 Anthropic /v1/messages）</span>
 </footer>
+
+<div class="modal" id="libModal">
+  <div class="modal-card">
+    <div class="modal-head">
+      <span class="tag">模型庫</span>
+      <span class="mono dir" id="libDir">—</span>
+      <button class="x" id="libClose">✕</button>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="local" id="tabLocal">本機模型</button>
+      <button class="tab" data-tab="search" id="tabSearch">Hugging Face 搜尋</button>
+      <button class="tab" data-tab="dl" id="tabDl">下載</button>
+    </div>
+
+    <div class="tabpane" id="paneLocal">
+      <div class="hintline mono">把 <b>.gguf</b> 放進上面的資料夾（可含子資料夾），按「重新整理」就會出現；點「使用」會切換模型並自動重啟服務。</div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <button class="mini" id="btnRefresh">重新整理</button>
+        <span class="hintline mono" id="localMeta">—</span>
+      </div>
+      <div class="mlist" id="localList"><div class="empty">掃描中…</div></div>
+    </div>
+
+    <div class="tabpane hidden" id="paneSearch">
+      <div class="searchbar">
+        <input id="hfQ" placeholder="例如 qwen3.8 27b、deepseek、gemma 12b、mistral 7b">
+        <button class="mini use" id="hfGo">搜尋</button>
+      </div>
+      <div class="filters">
+        <div class="fgroup" id="fProvider"><span class="flabel">廠商</span></div>
+        <div class="fgroup" id="fParams"><span class="flabel">參數</span></div>
+        <div class="fgroup" id="fQuant"><span class="flabel">量化</span></div>
+      </div>
+      <div class="mlist" id="hfList"><div class="empty">輸入模型名稱開始搜尋。</div></div>
+    </div>
+
+    <div class="tabpane hidden" id="paneDl">
+      <div class="dlrow"><span id="dlName">沒有進行中的下載</span><span id="dlPct">0%</span></div>
+      <div class="dlbars"><div class="fill" id="dlFill"></div></div>
+      <div class="hintline mono" id="dlMeta">—</div>
+      <div style="display:flex;gap:10px">
+        <button class="mini" id="dlCancel">取消下載</button>
+        <button class="mini" id="dlBack">回本機模型</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <div class="toast" id="toast"></div>
 
@@ -453,6 +567,205 @@ $("btnStart").onclick = () => { toast("正在載入權重，請稍候…"); act(
 $("btnStop").onclick  = () => { toast("正在卸載模型並釋放顯存…"); act("/api/stop"); };
 $("btnPurge").onclick = () => { toast("正在清空 Ollama / llama-server 佔用的顯存…"); act("/api/purge"); };
 $("btnTest").onclick  = () => { act("/api/selftest"); };
+
+/* ---------- model library ---------- */
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+const LIB = { hf: [], filters: { provider: "all", params: "all", quant: "all" }, dlTimer: null, dlDone: false };
+
+const PROVIDERS = [["all","全部"],["Qwen","Qwen"],["DeepSeek","DeepSeek"],["Llama","Llama"],["Gemma","Gemma"],["Mistral","Mistral"],["GLM","GLM"],["其他","其他"]];
+const PARAM_BUCKETS = [["all","全部"],["s","≤4B"],["m","7–9B"],["l","13–14B"],["xl","27–32B"],["xxl","70B+"]];
+const QUANT_BUCKETS = [["all","全部"],["Q4","Q4"],["Q5","Q5"],["Q6","Q6"],["Q8","Q8"]];
+
+function paramBucket(p) {
+  const v = parseFloat(String(p || "").replace(/[^\d.]/g, ""));
+  if (!v) return "";
+  if (v <= 4) return "s";
+  if (v <= 9.9) return "m";
+  if (v <= 14.9) return "l";
+  if (v <= 32.9) return "xl";
+  return "xxl";
+}
+
+function buildChips(hostId, options, key) {
+  const host = $(hostId);
+  options.forEach(([value, label]) => {
+    const b = document.createElement("button");
+    b.className = "chip2" + (LIB.filters[key] === value ? " active" : "");
+    b.textContent = label;
+    b.onclick = () => {
+      LIB.filters[key] = value;
+      [...host.querySelectorAll(".chip2")].forEach(x => x.classList.remove("active"));
+      b.classList.add("active");
+      renderHf();
+    };
+    host.appendChild(b);
+  });
+}
+
+function libOpen() {
+  $("libModal").classList.add("show");
+  refreshLocal();
+  if (!LIB.dlTimer) LIB.dlTimer = setInterval(pollDownload, 1000);
+  pollDownload();
+}
+function libClose() {
+  $("libModal").classList.remove("show");
+  if (LIB.dlTimer) { clearInterval(LIB.dlTimer); LIB.dlTimer = null; }
+}
+function libTab(name) {
+  ["local", "search", "dl"].forEach(t => {
+    $("pane" + t[0].toUpperCase() + t.slice(1)).classList.toggle("hidden", t !== name);
+    $("tab" + t[0].toUpperCase() + t.slice(1)).classList.toggle("active", t === name);
+  });
+}
+
+async function refreshLocal() {
+  $("localList").innerHTML = '<div class="empty">掃描中…</div>';
+  try {
+    const d = await (await fetch("/api/models", { cache: "no-store" })).json();
+    $("libDir").textContent = d.dir;
+    const items = d.items || [];
+    $("localMeta").textContent = `${items.length} 個 GGUF · GPU ${d.gpu_total_gb} GB · 目前上下文 ${d.ctx}`;
+    if (!items.length) { $("localList").innerHTML = '<div class="empty">這個資料夾還沒有 .gguf 檔，從「Hugging Face 搜尋」下載一個吧。</div>'; return; }
+    $("localList").innerHTML = "";
+    items.forEach(m => {
+      const row = document.createElement("div");
+      row.className = "mrow";
+      const fit = m.fit || {};
+      row.innerHTML = `
+        <div class="mname">${esc(m.name)}<small>${esc(m.rel)} · ${m.gb} GB · ${esc(m.params)} · ${esc(m.quant)}${m.projector ? " · 視覺投影" : ""}</small></div>
+        <span class="mfit ${fit.level || "unknown"}">${esc(fit.label || "")}${fit.need ? " · 需約 " + fit.need + " GB" : ""}</span>
+        <button class="mini ${m.active ? "use" : ""}" ${m.active ? "disabled" : ""}>${m.active ? "使用中" : "使用"}</button>`;
+      const btn = row.querySelector("button");
+      btn.onclick = async () => {
+        if (!confirm(`切換到 ${m.name}？\n模型會重新載入（約 10–30 秒）。`)) return;
+        toast("切換模型中…");
+        const r = await (await fetch(`/api/select?path=${encodeURIComponent(m.path)}`, { method: "POST" })).json();
+        toast(r.message, !r.ok);
+        refreshLocal(); poll();
+      };
+      $("localList").appendChild(row);
+    });
+  } catch (e) {
+    $("localList").innerHTML = `<div class="empty">讀取失敗：${esc(e.message)}</div>`;
+  }
+}
+
+async function hfSearch() {
+  const q = $("hfQ").value.trim();
+  if (!q) return;
+  $("hfList").innerHTML = '<div class="empty">搜尋中…</div>';
+  try {
+    const d = await (await fetch(`/api/hf/search?q=${encodeURIComponent(q)}&limit=40`, { cache: "no-store" })).json();
+    LIB.hf = d.items || [];
+    if (!d.ok) { $("hfList").innerHTML = `<div class="empty">搜尋失敗：${esc(d.message)}</div>`; return; }
+    renderHf();
+  } catch (e) {
+    $("hfList").innerHTML = `<div class="empty">搜尋失敗：${esc(e.message)}</div>`;
+  }
+}
+
+function renderHf() {
+  const list = LIB.hf.filter(r => {
+    if (LIB.filters.provider !== "all" && r.family !== LIB.filters.provider) return false;
+    if (LIB.filters.params !== "all" && paramBucket(r.params) !== LIB.filters.params) return false;
+    if (LIB.filters.quant !== "all" && !String(r.id).toUpperCase().includes(LIB.filters.quant)) return false;
+    return true;
+  });
+  if (!list.length) { $("hfList").innerHTML = '<div class="empty">沒有符合條件的結果，換個關鍵字或放寬篩選。</div>'; return; }
+  $("hfList").innerHTML = "";
+  list.forEach(repo => {
+    const row = document.createElement("div");
+    row.className = "mrow";
+    row.innerHTML = `
+      <div class="mname">${esc(repo.id)}<small>${esc(repo.family)} · ${esc(repo.params)} · ⬇ ${repo.downloads} · ★ ${repo.likes} · ${esc(repo.updated)}</small></div>
+      <button class="mini">查看權重</button>`;
+    const btn = row.querySelector("button");
+    const holder = document.createElement("div");
+    holder.style.gridColumn = "1 / -1";
+    btn.onclick = async () => {
+      btn.disabled = true; btn.textContent = "載入中…";
+      try {
+        const d = await (await fetch(`/api/hf/files?repo=${encodeURIComponent(repo.id)}`, { cache: "no-store" })).json();
+        if (!d.ok) throw new Error(d.message);
+        holder.innerHTML = "";
+        (d.items || []).forEach(f => {
+          const line = document.createElement("div");
+          line.className = "mrow";
+          line.style.margin = "4px 0 4px 18px";
+          line.innerHTML = `
+            <div class="mname">${esc(f.name)}<small>${f.gb} GB · ${esc(f.quant)} · ${esc(f.params)}</small></div>
+            <span class="mfit ${f.fit.level}">${esc(f.fit.label)}${f.fit.need ? " · 需約 " + f.fit.need + " GB" : ""}</span>
+            <button class="mini">下載</button>`;
+          line.querySelector("button").onclick = async () => {
+            if (!confirm(`下載 ${f.name}（${f.gb} GB）到模型資料夾？`)) return;
+            const r = await (await fetch(`/api/hf/download?repo=${encodeURIComponent(repo.id)}&file=${encodeURIComponent(f.name)}`, { method: "POST" })).json();
+            toast(r.message, !r.ok);
+            libTab("dl"); pollDownload();
+          };
+          holder.appendChild(line);
+        });
+        if (!(d.items || []).length) holder.innerHTML = '<div class="empty">這個 repo 沒有 .gguf 檔</div>';
+      } catch (e) {
+        holder.innerHTML = `<div class="empty">讀取檔案清單失敗：${esc(e.message)}</div>`;
+      }
+      btn.disabled = false; btn.textContent = "查看權重";
+    };
+    $("hfList").appendChild(row);
+    $("hfList").appendChild(holder);
+  });
+}
+
+async function pollDownload() {
+  try {
+    const d = await (await fetch("/api/download/status", { cache: "no-store" })).json();
+    if (d.active) {
+      $("dlName").textContent = `${d.repo} / ${d.file}`;
+      $("dlPct").textContent = (d.percent || 0).toFixed(1) + "%";
+      $("dlFill").style.width = (d.percent || 0) + "%";
+      $("dlMeta").textContent = d.total
+        ? `${(d.done / 1073741824).toFixed(2)} / ${(d.total / 1073741824).toFixed(2)} GB · ${(d.speed / 1048576).toFixed(1)} MB/s`
+        : "取得檔案大小…";
+      LIB.dlDone = false;
+    } else if (d.finished && !LIB.dlDone) {
+      LIB.dlDone = true;
+      if (d.error) {
+        $("dlName").textContent = "下載失敗";
+        $("dlMeta").textContent = d.error;
+        $("dlFill").style.width = "0%";
+        toast("下載失敗：" + d.error, true);
+      } else {
+        $("dlName").textContent = "下載完成";
+        $("dlPct").textContent = "100%";
+        $("dlFill").style.width = "100%";
+        $("dlMeta").textContent = d.path;
+        toast("下載完成，已設為預設模型");
+        refreshLocal();
+      }
+    }
+  } catch (e) { /* ignore */ }
+}
+
+$("btnLib").onclick = libOpen;
+$("libClose").onclick = libClose;
+$("libModal").addEventListener("click", e => { if (e.target.id === "libModal") libClose(); });
+["Local", "Search", "Dl"].forEach(t => {
+  $("tab" + t).onclick = () => libTab(t.toLowerCase());
+});
+$("btnRefresh").onclick = refreshLocal;
+$("hfGo").onclick = hfSearch;
+$("hfQ").addEventListener("keydown", e => { if (e.key === "Enter") hfSearch(); });
+$("dlCancel").onclick = async () => {
+  const r = await (await fetch("/api/download/cancel", { method: "POST" })).json();
+  toast(r.message, !r.ok);
+};
+$("dlBack").onclick = () => { libTab("local"); refreshLocal(); };
+
+buildChips("fProvider", PROVIDERS, "provider");
+buildChips("fParams", PARAM_BUCKETS, "params");
+buildChips("fQuant", QUANT_BUCKETS, "quant");
+
+if (location.hash === "#models") libOpen();
 
 poll();
 setInterval(poll, 1500);
