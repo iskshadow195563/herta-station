@@ -1,4 +1,4 @@
-# Herta Station
+﻿# Herta Station
 
 A single-file Windows app that starts/stops a local **llama.cpp** server and shows its state in a Herta Space Station styled window — VRAM, PID, context, KV cache type, throughput, and the live `llama-server` log.
 
@@ -57,10 +57,10 @@ The EXE reads the same environment variables; anything unset falls back to the d
 | `HERTA_MMPROJ_PATH` | `…\mmproj-F16.gguf` | vision projector file |
 | `HERTA_MMPROJ` | `0` | `1` loads the projector (costs ~0.9 GB VRAM) |
 | `HERTA_ALIAS` | `qwen3.8-27b-q3xl` | model name reported by `/v1/models` |
-| `HERTA_CTX` | `49152` | context length |
+| `HERTA_CTX` | `65536` | context length |
 | `HERTA_PARALLEL` | `1` | parallel slots (`-np`) |
 | `HERTA_FA` | `on` | flash attention |
-| `HERTA_CTK` / `HERTA_CTV` | `q5_1` | KV cache types |
+| `HERTA_CTK` / `HERTA_CTV` | `q4_0` | KV cache types |
 | `HERTA_BIND` | `0.0.0.0` | listen address (`127.0.0.1` = local only) |
 | `HERTA_PORT` | `11433` | model API port |
 | `HERTA_API_KEY` | empty | when set, clients must send `Authorization: Bearer …` |
@@ -94,12 +94,16 @@ When you expose the endpoint on a LAN, only the model port is reachable — 8899
 | 8192 | q8_0 | 14.8 GB | 44 tok/s |
 | 24576 | q8_0 | 15.5 GB | 42 tok/s |
 | 32768 | q8_0 | 15.4 GB | 19.7 tok/s |
-| 40960 | q8_0 | 15.6 GB | 12.9 tok/s |
+| 49152 | q5_1 | 15.25 GB | 47 tok/s |
 | 49152 | q8_0 | 15.7 GB | **3.1 tok/s** |
-| 49152 | **q5_1** | **15.25 GB** | **47 tok/s** |
-| 49152 | q4_0 | 15.0 GB | 47 tok/s |
+| **65536** | **q4_0** | **15.33 GB** | **45 tok/s** (38 tok/s at 38k context) |
+| 81920 | q4_0 | 15.59 GB | 25 tok/s |
+| 98304 | q4_0 | 15.69 GB | 5 tok/s |
+| 131072 | q4_0 | 15.73 GB | 1.3 tok/s |
 
-That is why the defaults are `-c 49152 -ctk q5_1 -ctv q5_1`, and why the vision projector is off unless asked for.
+That is why the defaults are `-c 65536 -ctk q4_0 -ctv q4_0`: the largest context that still stays under the cliff on a 16 GB card, and the vision projector stays off unless asked for. Keeping the KV cache in RAM (`-nkvo`) does allow 131072, but generation at long context collapses to ~2 tok/s, so it is not a win.
+
+`q5_1` KV is a little more precise but has no native flash-attention kernel in current builds (the log tells you to compile `q5_1-q5_1` into `GGML_CUDA_FA_QUANTS`), and at 64k it pushes VRAM over the cliff — `q4_0` is both faster and smaller here.
 
 ## Layout
 

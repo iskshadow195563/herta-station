@@ -32,12 +32,12 @@ HOST = "127.0.0.1"                               # control plane / probes (never
 BIND = os.environ.get("HERTA_BIND", "0.0.0.0")   # llama-server listen address (LAN reachable)
 API_KEY = os.environ.get("HERTA_API_KEY", "").strip()  # optional bearer token for LAN clients
 PORT = int(os.environ.get("HERTA_PORT", "11433"))
-CTX = int(os.environ.get("HERTA_CTX", "49152"))
+CTX = int(os.environ.get("HERTA_CTX", "65536"))
 PARALLEL = int(os.environ.get("HERTA_PARALLEL", "1"))
 FA = os.environ.get("HERTA_FA", "on")
-CTK = os.environ.get("HERTA_CTK", "q5_1")   # q5_1 keeps 49k ctx under the 16 GB cliff
-CTV = os.environ.get("HERTA_CTV", "q5_1")
-# the vision projector costs ~0.9 GB; off by default so 49k context fits in 16 GB
+CTK = os.environ.get("HERTA_CTK", "q4_0")   # q4_0 KV keeps 64k ctx under the 16 GB cliff
+CTV = os.environ.get("HERTA_CTV", "q4_0")
+# the vision projector costs ~0.9 GB; off by default so 64k context fits in 16 GB
 MMPROJ_ON = os.environ.get("HERTA_MMPROJ", "0").lower() in ("1", "on", "true", "yes")
 NGL = 99
 UI_PORT = 8899
