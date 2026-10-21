@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
@@ -94,19 +94,24 @@
   .core{grid-row:1 / span 2;display:flex;flex-direction:column}
   .reactor{position:relative;flex:1 1 auto;min-height:0;display:grid;place-items:center;overflow:hidden}
   .reactor svg{position:absolute;inset:0;width:100%;height:100%}
-  .ring{fill:none;stroke:rgba(111,242,255,.26);transform-origin:50% 50%}
+  .ring{fill:none;stroke:rgba(111,242,255,.26)}
   .ring.thin{stroke:rgba(111,242,255,.14)}
   .ring.dash{stroke-dasharray:2 9;stroke:rgba(111,242,255,.55)}
-  .ring.arc{stroke-dasharray:130 250;stroke:var(--cyan);stroke-width:2.2;opacity:.6}
-  .ring.arc2{stroke-dasharray:64 300;stroke:var(--violet);stroke-width:2.2;opacity:.55}
+  .ring.arc{stroke:var(--cyan);stroke-width:2.4;opacity:.65;stroke-linecap:round;stroke-dasharray:calc(0.17 * 2 * 3.14159 * 112) calc(0.83 * 2 * 3.14159 * 112)}
+  .ring.arc2{stroke:var(--violet);stroke-width:2.4;opacity:.6;stroke-linecap:round;stroke-dasharray:calc(0.13 * 2 * 3.14159 * 88) calc(0.87 * 2 * 3.14159 * 88)}
+  /* rotate each group around its own centre; without transform-box the circles
+     swing around the SVG origin and the rings look torn apart */
+  .r1,.r2,.r3{transform-box:fill-box;transform-origin:50% 50%}
   .r1{animation:spin 46s linear infinite}
   .r2{animation:spin 26s linear reverse infinite}
   .r3{animation:spin 18s linear infinite}
   .hex{fill:url(#hexFill);stroke:rgba(111,242,255,.5);stroke-width:1.2}
-  .core-label{position:relative;z-index:2;text-align:center}
-  .core-label .state{font-size:25px;letter-spacing:.22em;line-height:1.2;color:#eaf7ff;text-shadow:0 0 20px rgba(111,242,255,.45)}
-  .core-label .sub{margin-top:7px;font-size:9.5px;letter-spacing:.22em;color:var(--dim)}
-  .core-label .tick{margin-top:5px;font-size:9.5px;letter-spacing:.2em;color:var(--warn);height:11px}
+  .core-label{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;text-align:center;pointer-events:none}
+  .core-label .state{font-size:25px;line-height:1.25;color:#eaf7ff;text-shadow:0 0 20px rgba(111,242,255,.45);
+    letter-spacing:.22em;padding-left:.22em}
+  .core-label .sub{margin-top:7px;font-size:9.5px;letter-spacing:.22em;color:var(--dim);padding-left:.22em}
+  .core-label .tick{margin-top:5px;font-size:9.5px;letter-spacing:.2em;color:var(--warn);height:11px;padding-left:.2em}
 
   .phase-loading .ring.arc,.phase-loading .ring.arc2{stroke:var(--warn);opacity:.95}
   .phase-loading .r1{animation-duration:6s}
@@ -592,7 +597,7 @@
 
 <footer>
   <span class="quote" id="quote">模擬宇宙已就緒，人偶，別讓我等太久。</span>
-  <span class="mono">llama.cpp b11756 · CUDA 13.4 · sm_120 · 僅提供 OpenAI 格式（無 Anthropic /v1/messages）</span>
+  <span class="mono">llama.cpp b11756 · CUDA 13.4 · sm_120 · <span id="footNote">僅提供 OpenAI 格式（無 Anthropic /v1/messages）</span></span>
 </footer>
 
 <div class="modal" id="libModal">
@@ -673,6 +678,13 @@
         <label class="setrow"><span>介面縮放</span>
           <input type="range" id="setScale" min="80" max="135" step="5">
           <b class="mono" id="setScaleVal">100%</b>
+        </label>
+        <label class="setrow"><span>語言 / Language</span>
+          <select id="setLang">
+            <option value="zh-Hant">繁體中文</option>
+            <option value="zh-Hans">简体中文</option>
+            <option value="en">English</option>
+          </select>
         </label>
         <label class="setrow"><span>背景動畫（星空／呼吸光）</span>
           <input type="checkbox" id="setAnim">
@@ -772,6 +784,7 @@ function toast(msg, bad){
   t.textContent = msg;
   t.classList.toggle("bad", !!bad);
   t.classList.add("show");
+  applyLang();
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.classList.remove("show"), 4200);
 }
@@ -800,9 +813,9 @@ function paint(s){
   panel.classList.add("phase-" + s.phase);
 
   const map = {
-    idle:    ["待機", "IDLE // VRAM RELEASED", "LINK STANDBY"],
-    loading: ["載入中", "LOADING WEIGHTS → VRAM", "LINK SYNCING"],
-    running: ["運行中", "ONLINE // SERVING /v1", "LINK ONLINE"]
+    idle:    [t("待機"), "IDLE // VRAM RELEASED", "LINK STANDBY"],
+    loading: [t("載入中"), "LOADING WEIGHTS → VRAM", "LINK SYNCING"],
+    running: [t("運行中"), "ONLINE // SERVING /v1", "LINK ONLINE"]
   };
   $("stateText").textContent = map[s.phase][0];
   $("stateSub").textContent  = map[s.phase][1];
@@ -830,7 +843,7 @@ function paint(s){
   $("vTps").textContent = s.tps ? s.tps.toFixed(1) + " tok/s" : "—";
   $("vLan").textContent = s.endpoint_lan || "—";
   const kb = $("keyBadge");
-  kb.textContent = s.api_key ? "API KEY 已啟用" : "無 API KEY";
+  kb.textContent = s.api_key ? t("KEY_ON") : t("KEY_OFF");
   kb.className = "keybadge " + (s.api_key ? "on" : "warn");
   $("vKv").textContent = (s.ctk || "f16") + " / " + (s.ctv || "f16");
   $("vNp").textContent = (s.parallel ?? 1) + " × " + (s.ctx ?? "—");
@@ -854,6 +867,7 @@ function paint(s){
     const safe = line.replace(/[&<>]/g, ch => ({ "&":"&amp;","<":"&lt;",">":"&gt;" }[ch]));
     return cls ? `<span class="${cls}">${safe}</span>` : safe;
   }).join("\n");
+  applyLang();
   if (logBox.dataset.raw !== text){
     logBox.dataset.raw = text;
     logBox.innerHTML = text || "（尚無日誌 · llama-server 未啟動）";
@@ -957,7 +971,7 @@ async function loadRecommend() {
     const d = await (await fetch("/api/recommend", { cache: "no-store" })).json();
     LIB.reco = d;
     const hw = d.hardware || {};
-    $("recoHw").textContent = `${hw.gpu || "未知 GPU"} · ${hw.vram_gb || "?"} GB 顯存 · 上下文 ${d.ctx} · 可用權重 ${d.weights_budget_gb} GB`;
+    $("recoHw").textContent = t("RECO_HW", { gpu: hw.gpu || "?", vram: hw.vram_gb || "?", ctx: d.ctx, w: d.weights_budget_gb });
     const body = $("recoBody");
     body.innerHTML = "";
     (d.picks || []).forEach((p, i) => {
@@ -965,7 +979,7 @@ async function loadRecommend() {
       el.className = "pick" + (i === 0 ? " primary" : "");
       el.innerHTML = `<span class="tier">${esc(p.tier)}</span>
         <b>${p.params_b}B · ${esc(p.quant)}</b>
-        <span>約 ${p.gb} GB · 餘裕 ${p.headroom_gb} GB</span>`;
+        <span>${t("PICK_META", { gb: p.gb, free: p.headroom_gb })}</span>`;
       body.appendChild(el);
     });
     if (!(d.picks || []).length) {
@@ -982,7 +996,7 @@ async function refreshLocal() {
     const d = await (await fetch("/api/models", { cache: "no-store" })).json();
     $("libDir").textContent = d.dir;
     const items = d.items || [];
-    $("localMeta").textContent = `${items.length} 個 GGUF · GPU ${d.gpu_total_gb} GB · 目前上下文 ${d.ctx}`;
+    $("localMeta").textContent = t("LOCAL_META", { n: items.length, gpu: d.gpu_total_gb, ctx: d.ctx });
     if (!items.length) {
       $("localList").innerHTML = LOCAL_HEAD + '<div class="empty">這個資料夾還沒有 .gguf 檔，從「Hugging Face 搜尋」下載一個吧。</div>';
       return;
@@ -1001,7 +1015,7 @@ async function refreshLocal() {
         <span class="c-num">${m.gb} GB</span>
         <span class="c-num">${esc(m.params)}</span>
         <span class="c-num">${esc(m.quant)}</span>
-        <span><span class="mfit ${fit.level || "unknown"}">${esc(fit.label || "")}${fit.need ? " · " + fit.need + " GB" : ""}</span></span>
+        <span><span class="mfit ${fit.level || "unknown"}">${esc(fit.label || "")}</span><small class="mono" style="color:var(--dim);margin-left:6px">${fit.need ? fit.need + " GB" : ""}</small></span>
         <span class="c-act"><button class="mini ${m.active && !m.projector ? "use" : ""}" ${actOff ? "disabled" : ""}>${actLabel}</button></span>`;
       row.querySelector("button").onclick = async () => {
         if (m.projector) return;
@@ -1013,6 +1027,7 @@ async function refreshLocal() {
       };
       $("localList").appendChild(row);
     });
+    applyLang();
   } catch (e) {
     $("localList").innerHTML = LOCAL_HEAD + `<div class="empty">讀取失敗：${esc(e.message)}</div>`;
   }
@@ -1026,7 +1041,7 @@ async function hfSearch(forced) {
     return;
   }
   const wide = forced !== undefined;   // provider-wide browse: pull more rows
-  $("hfList").innerHTML = `<div class="empty">搜尋「${esc(q)}」中…</div>`;
+  $("hfList").innerHTML = `<div class="empty">${t("SEARCHING", { q: esc(q) })}</div>`;
   try {
     const d = await (await fetch(`/api/hf/search?q=${encodeURIComponent(q)}&limit=${wide ? 80 : 40}`, { cache: "no-store" })).json();
     if (!d.ok) { $("hfList").innerHTML = `<div class="empty">搜尋失敗：${esc(d.message)}</div>`; return; }
@@ -1076,7 +1091,7 @@ function renderHf() {
             <span class="c-name">${esc(f.name)}<small>${esc(f.params)}</small></span>
             <span class="c-num">${f.gb} GB</span>
             <span class="c-num">${esc(f.quant)}</span>
-            <span><span class="mfit ${f.fit.level}">${esc(f.fit.label)}${f.fit.need ? " · " + f.fit.need + " GB" : ""}</span></span>
+            <span><span class="mfit ${f.fit.level}">${esc(f.fit.label)}</span><small class="mono" style="color:var(--dim);margin-left:6px">${f.fit.need ? f.fit.need + " GB" : ""}</small></span>
             <span class="c-act"><button class="mini">下載</button></span>`;
           line.querySelector("button").onclick = async () => {
             if (!confirm(`下載 ${f.name}（${f.gb} GB）到模型資料夾？`)) return;
@@ -1095,6 +1110,7 @@ function renderHf() {
     $("hfList").appendChild(row);
     $("hfList").appendChild(holder);
   });
+  applyLang();
 }
 
 async function resetDl() {
@@ -1203,6 +1219,144 @@ buildChips("fQuant", QUANT_BUCKETS, "quant");
   if (p) { libTab("search"); selectChip("fProvider", p); }
 })();
 
+/* ---------- i18n ---------- */
+const LANGS = ["zh-Hant", "zh-Hans", "en"];
+let LANG = "zh-Hant";
+const I18N = {
+  "zh-Hant": {},
+  "zh-Hans": {
+    "模擬宇宙 · 本地推理終端": "模拟宇宙 · 本地推理终端",
+    "設定": "设置", "模型庫 · MODELS": "模型库 · MODELS", "核心": "核心",
+    "待機": "待机", "啟動模組": "启动模块", "停止模組": "停止模块",
+    "清空顯存": "清空显存", "連線測試": "连接测试", "遙測": "遥测",
+    "模型": "模型", "量化": "量化", "上下文": "上下文", "GPU 層": "GPU 层",
+    "監聽埠": "监听端口", "程序 PID": "进程 PID", "運行時長": "运行时长",
+    "吞吐": "吞吐", "KV 快取": "KV 缓存", "並行 slot": "并行 slot", "日誌": "日志",
+    "模型庫": "模型库", "本機模型": "本机模型", "Hugging Face 搜尋": "Hugging Face 搜索",
+    "下載": "下载", "本機建議": "本机建议", "偵測中…": "检测中…",
+    "用這個規格搜尋": "用这个规格搜索", "重新整理": "刷新", "搜尋": "搜索",
+    "廠商": "厂商", "參數": "参数",
+    "輸入模型名稱開始搜尋。": "输入模型名称开始搜索。",
+    "沒有進行中的下載": "没有进行中的下载",
+    "從 Hugging Face 搜尋分頁挑一個權重即可下載。": "从 Hugging Face 搜索分页挑一个权重即可下载。",
+    "取消下載": "取消下载", "回本機模型": "回本机模型",
+    "介面": "界面", "介面風格": "界面风格", "黑塔": "黑塔",
+    "空間站・深色": "空间站・深色", "極簡白": "极简白",
+    "Ollama 風・乾淨": "Ollama 风・干净", "2001 復古": "2001 复古",
+    "介面縮放": "界面缩放", "背景動畫（星空／呼吸光）": "背景动画（星空／呼吸光）",
+    "模型服務": "模型服务", "變更後需要重新載入模型才會生效": "变更后需要重新载入模型才会生效",
+    "上下文長度": "上下文长度", "自訂…": "自定义…", "KV 快取精度": "KV 缓存精度",
+    "f16（最準，最吃記憶體）": "f16（最准，最吃内存）", "q4_0（最省，速度快）": "q4_0（最省，速度快）",
+    "並行 slot（-np）": "并行 slot（-np）", "GPU 層數（-ngl）": "GPU 层数（-ngl）",
+    "監聽位址": "监听地址", "0.0.0.0（區網可用）": "0.0.0.0（局域网可用）",
+    "127.0.0.1（僅本機）": "127.0.0.1（仅本机）", "連接埠": "端口",
+    "儲存": "保存", "儲存並重載模型": "保存并重载模型", "還原預設": "还原默认", "關閉": "关闭",
+    "模型名稱": "模型名称", "大小": "大小", "顯存評估": "显存评估",
+    "操作": "操作", "偵測不到顯存": "检测不到显存", "請手動挑選模型": "请手动挑选模型",
+    "掃描中…": "扫描中…",
+    "輸入關鍵字搜尋，或直接點上面的廠商瀏覽該廠商的全部 GGUF 模型。": "输入关键字搜索，或直接点上面的厂商浏览该厂商的全部 GGUF 模型。",
+    "沒有符合條件的結果，換個關鍵字或放寬篩選。": "没有符合条件的结果，换个关键字或放宽筛选。",
+    "查看權重": "查看权重", "這個 repo 沒有 .gguf 檔": "这个 repo 没有 .gguf 档",
+    "「其他」沒有對應的關鍵字，請直接輸入模型名稱。": "「其他」没有对应关键字，请直接输入模型名称。",
+    "運行中": "运行中", "載入中": "载入中", "使用中": "使用中", "使用": "使用",
+    "投影檔": "投影文件", "可全載入 GPU": "可全载入 GPU", "勉強塞得下": "勉强塞得下",
+    "超出顯存": "超出显存", "未知": "未知", "建議": "建议", "品質上限": "品质上限", "速度": "速度",
+    "模擬宇宙已就緒，人偶，別讓我等太久。": "模拟宇宙已就绪，人偶，别让我等太久。",
+    "本機最接近": "本机最接近", "已載入": "已载入", "使用預設值": "使用默认值",
+    "語言 / Language": "语言 / Language",
+    "無 API KEY": "无 API KEY", "API KEY 已啟用": "API KEY 已启用",
+    "僅提供 OpenAI 格式（無 Anthropic /v1/messages）": "仅提供 OpenAI 格式（无 Anthropic /v1/messages）",
+    "RECO_HW": "{gpu} · {vram} GB 显存 · 上下文 {ctx} · 可用权重 {w} GB",
+    "PICK_META": "约 {gb} GB · 余量 {free} GB",
+    "LOCAL_META": "{n} 个 GGUF · GPU {gpu} GB · 当前上下文 {ctx}",
+    "KEY_ON": "API KEY 已启用", "KEY_OFF": "无 API KEY",
+    "SEARCHING": "搜索「{q}」中…",
+  },
+  "en": {
+    "模擬宇宙 · 本地推理終端": "Simulated Universe · local inference terminal",
+    "設定": "SETTINGS", "模型庫 · MODELS": "MODELS", "核心": "CORE",
+    "待機": "Idle", "啟動模組": "Start model", "停止模組": "Stop model",
+    "清空顯存": "Free VRAM", "連線測試": "Self-test", "遙測": "TELEMETRY",
+    "模型": "Model", "量化": "Quant", "上下文": "Context", "GPU 層": "GPU layers",
+    "監聽埠": "Port", "程序 PID": "PID", "運行時長": "Uptime",
+    "吞吐": "Throughput", "KV 快取": "KV cache", "並行 slot": "Parallel slots", "日誌": "LOG",
+    "模型庫": "Model library", "本機模型": "Local models", "Hugging Face 搜尋": "Hugging Face",
+    "下載": "Download", "本機建議": "RECOMMENDED", "偵測中…": "Detecting…",
+    "用這個規格搜尋": "Search this spec", "重新整理": "Refresh", "搜尋": "Search",
+    "廠商": "Vendor", "參數": "Params",
+    "輸入模型名稱開始搜尋。": "Type a model name to search.",
+    "沒有進行中的下載": "No download in progress",
+    "從 Hugging Face 搜尋分頁挑一個權重即可下載。": "Pick a weight file in the Hugging Face tab to download.",
+    "取消下載": "Cancel", "回本機模型": "Back to local models",
+    "介面": "Interface", "介面風格": "Theme", "黑塔": "Herta",
+    "空間站・深色": "space station · dark", "極簡白": "Minimal white",
+    "Ollama 風・乾淨": "Ollama-like · clean", "2001 復古": "retro 2001",
+    "介面縮放": "UI scale", "背景動畫（星空／呼吸光）": "Background animation",
+    "模型服務": "Model service", "變更後需要重新載入模型才會生效": "applies after the model reloads",
+    "上下文長度": "Context length", "自訂…": "Custom…", "KV 快取精度": "KV cache precision",
+    "f16（最準，最吃記憶體）": "f16 (most precise, most memory)", "q4_0（最省，速度快）": "q4_0 (smallest, fastest)",
+    "並行 slot（-np）": "Parallel slots (-np)", "GPU 層數（-ngl）": "GPU layers (-ngl)",
+    "監聽位址": "Listen address", "0.0.0.0（區網可用）": "0.0.0.0 (LAN reachable)",
+    "127.0.0.1（僅本機）": "127.0.0.1 (local only)", "連接埠": "Port",
+    "儲存": "Save", "儲存並重載模型": "Save & reload", "還原預設": "Restore defaults", "關閉": "Close",
+    "模型名稱": "Model", "大小": "Size", "顯存評估": "VRAM",
+    "操作": "Action", "偵測不到顯存": "No GPU detected", "請手動挑選模型": "Pick a model manually",
+    "掃描中…": "Scanning…",
+    "輸入關鍵字搜尋，或直接點上面的廠商瀏覽該廠商的全部 GGUF 模型。": "Type a keyword, or just click a vendor chip to browse all of its GGUF models.",
+    "沒有符合條件的結果，換個關鍵字或放寬篩選。": "No results — try another keyword or loosen the filters.",
+    "查看權重": "View weights", "這個 repo 沒有 .gguf 檔": "This repo has no .gguf files",
+    "「其他」沒有對應的關鍵字，請直接輸入模型名稱。": "\"Other\" has no keyword — type a model name instead.",
+    "運行中": "Running", "載入中": "Loading", "使用中": "In use", "使用": "Use",
+    "投影檔": "projector", "可全載入 GPU": "Fits on GPU", "勉強塞得下": "Tight fit",
+    "超出顯存": "Too big", "未知": "unknown", "建議": "Suggested", "品質上限": "Quality max", "速度": "Speed",
+    "模擬宇宙已就緒，人偶，別讓我等太久。": "The Simulated Universe is ready. Don't keep me waiting, puppet.",
+    "本機最接近": "Closest local", "已載入": "loaded", "使用預設值": "using defaults",
+    "語言 / Language": "Language",
+    "無 API KEY": "NO API KEY", "API KEY 已啟用": "API KEY ON",
+    "僅提供 OpenAI 格式（無 Anthropic /v1/messages）": "OpenAI format only (no Anthropic /v1/messages)",
+    "RECO_HW": "{gpu} · {vram} GB VRAM · context {ctx} · {w} GB for weights",
+    "PICK_META": "~{gb} GB · {free} GB free",
+    "LOCAL_META": "{n} GGUF · GPU {gpu} GB · context {ctx}",
+    "KEY_ON": "API KEY ON", "KEY_OFF": "NO API KEY",
+    "SEARCHING": "Searching “{q}”…",
+  },
+};
+
+function t(key, vars) {
+  const dict = I18N[LANG] || {};
+  let s = dict[key] !== undefined ? dict[key] : key;
+  if (vars) for (const k in vars) s = s.split("{" + k + "}").join(vars[k]);
+  return s;
+}
+
+const _zhText = new WeakMap();
+
+function applyLang(lang) {
+  if (lang) LANG = LANGS.includes(lang) ? lang : "zh-Hant";
+  document.documentElement.lang = LANG === "en" ? "en" : (LANG === "zh-Hans" ? "zh-CN" : "zh-Hant");
+  const dict = I18N[LANG] || {};
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  let node;
+  while ((node = walker.nextNode())) {
+    const parent = node.parentElement;
+    if (!parent || parent.closest("script,style")) continue;
+    const raw = node.nodeValue;
+    if (!raw || !raw.trim()) continue;
+    if (!_zhText.has(node)) _zhText.set(node, raw);
+    const src = _zhText.get(node);
+    const key = src.trim();
+    const tr = dict[key];
+    node.nodeValue = tr === undefined ? src : src.replace(key, tr);
+  }
+  document.querySelectorAll("[placeholder]").forEach(el => {
+    if (!el.dataset.zhPh) el.dataset.zhPh = el.placeholder;
+    const tr = dict[el.dataset.zhPh];
+    el.placeholder = tr === undefined ? el.dataset.zhPh : tr;
+  });
+  const sel = $("setLang");
+  if (sel) sel.value = LANG;
+}
+
 /* ---------- settings ---------- */
 const SET = { current: null, defaults: null, theme: "herta" };
 const THEME_IDS = ["herta", "ollama", "xp"];
@@ -1214,6 +1368,7 @@ function applyUi(s) {
   document.body.classList.add("theme-" + t);
   document.body.style.zoom = s.ui.scale;
   document.body.classList.toggle("no-anim", !s.ui.animations);
+  applyLang(s.ui.lang);
 }
 
 function markThemeCard(theme) {
@@ -1251,6 +1406,7 @@ function collectSettings() {
   return {
     ui: {
       theme: SET.theme,
+      lang: $("setLang").value,
       scale: parseInt($("setScale").value, 10) / 100,
       animations: $("setAnim").checked,
     },
@@ -1313,6 +1469,12 @@ $("setScale").addEventListener("input", e => {
   const v = parseInt(e.target.value, 10);
   $("setScaleVal").textContent = v + "%";
   document.body.style.zoom = v / 100;
+});
+$("setLang").addEventListener("change", e => {
+  applyLang(e.target.value);
+  poll();
+  if ($("libModal").classList.contains("show")) { refreshLocal(); if (LIB.hf.length) renderHf(); }
+  if ($("setModal").classList.contains("show")) { loadRecommend(); }
 });
 document.querySelectorAll(".themeCard").forEach(card => {
   card.onclick = () => {

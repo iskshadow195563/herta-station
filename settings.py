@@ -19,6 +19,7 @@ SETTINGS_FILE = os.path.join(DATA_DIR, "settings.json")
 DEFAULTS = {
     "ui": {
         "theme": "herta",      # herta | ollama | xp
+        "lang": "zh-Hant",     # zh-Hant | zh-Hans | en
         "scale": 1.0,          # 0.8 … 1.35, applied as CSS zoom
         "animations": True,    # starfield / pulsing highlights
     },
@@ -37,6 +38,7 @@ DEFAULTS = {
 KV_TYPES = {"f16", "q8_0", "q5_1", "q5_0", "q4_1", "q4_0"}
 BINDS = {"0.0.0.0", "127.0.0.1"}
 THEMES = {"herta", "ollama", "xp"}
+LANGS = {"zh-Hant", "zh-Hans", "en"}
 
 
 def _merge(base, patch):
@@ -67,6 +69,7 @@ def validate(data):
     except (TypeError, ValueError):
         scale = DEFAULTS["ui"]["scale"]
     ui = {"theme": str(ui.get("theme", "herta")) if str(ui.get("theme", "herta")) in THEMES else "herta",
+          "lang": str(ui.get("lang", "zh-Hant")) if str(ui.get("lang", "zh-Hant")) in LANGS else "zh-Hant",
           "scale": round(max(0.8, min(1.35, scale)), 2),
           "animations": bool(ui.get("animations", True))}
 

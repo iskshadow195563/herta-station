@@ -33,7 +33,7 @@ Click **設定** in the header (or open `http://127.0.0.1:8899/#settings`).
 
 | Group | Fields |
 | --- | --- |
-| 介面 | **theme** (黑塔 / 極簡白 / Windows XP), UI zoom (80–135 %, previewed live as CSS zoom), background animation on/off |
+| 介面 | **theme** (黑塔 / 極簡白 / Windows XP), **language** (繁體中文 / 简体中文 / English), UI zoom (80–135 %, previewed live as CSS zoom), background animation on/off |
 | 模型服務 | context length, KV cache precision (f16 / q8_0 / q5_1 / q4_0), parallel slots (`-np`), GPU layers (`-ngl`), bind address, port, API key |
 
 - Everything is stored in `settings.json` next to the EXE; the panel wins over the environment variables, which stay as first-run defaults.
@@ -51,6 +51,14 @@ Three skins, picked in 設定 → 介面風格, applied instantly and stored in 
 
 ![Extreme minimal theme](docs/theme-ollama.png)
 ![Windows XP theme](docs/theme-xp.png)
+### Languages
+
+The interface ships in 繁體中文 (default), 简体中文 and English — switch it in 設定 → 語言 / Language, or set ui.lang in settings.json (zh-Hant, zh-Hans, en).
+
+Static labels are translated through a keyed dictionary; dynamic text (status, counters, recommendation lines) goes through the same dictionary via a 	(key, vars) helper, so switching re-renders the live panels instead of leaving stale strings behind.
+
+![English interface](docs/i18n-en.png)
+
 
 
 ## Model library
