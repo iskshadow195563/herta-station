@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
@@ -284,6 +284,8 @@
   .settitle{font-size:11px;letter-spacing:.22em;color:var(--cyan)}
   .settitle small{color:var(--dim);letter-spacing:.04em;font-size:9.5px}
   .setrow{display:flex;align-items:center;gap:12px;font-size:12px;color:#dbe9ff}
+  .sethint{padding:6px 10px;border:1px solid rgba(255,196,92,.35);background:rgba(255,196,92,.07);
+    color:#ffd479;font-size:11px;line-height:1.6}
   .setrow > span{flex:0 0 154px;color:var(--dim);font-size:11px;letter-spacing:.08em}
   .setrow input[type=range]{flex:1;accent-color:#6ff2ff}
   .setrow input[type=number], .setrow input[type=text], .setrow select{
@@ -708,10 +710,15 @@
             <option value="65536">65536</option>
             <option value="98304">98304</option>
             <option value="131072">131072</option>
+            <option value="196608">196608</option>
+            <option value="262144">262144</option>
+            <option value="524288">524288</option>
+            <option value="1048576">1048576</option>
             <option value="0">自訂…</option>
           </select>
-          <input type="number" id="setCtxCustom" min="2048" max="262144" step="1024" style="flex:0 0 130px;display:none">
+          <input type="number" id="setCtxCustom" min="2048" max="1048576" step="1024" style="flex:0 0 130px;display:none">
         </label>
+        <div class="sethint" id="ctxWarn" style="display:none">⚠ 長上下文會佔用大量顯存；總用量超過約 15.3 GB 時 Windows 會換頁，速度可能掉到十分之一。</div>
         <label class="setrow"><span>KV 快取精度</span>
           <select id="setKv">
             <option value="f16">f16（最準，最吃記憶體）</option>
@@ -1276,6 +1283,7 @@ const I18N = {
     "模擬宇宙已就緒，人偶，別讓我等太久。": "模拟宇宙已就绪，人偶，别让我等太久。",
     "本機最接近": "本机最接近", "已載入": "已载入", "使用預設值": "使用默认值",
     "語言 / Language": "语言 / Language",
+    "⚠ 長上下文會佔用大量顯存；總用量超過約 15.3 GB 時 Windows 會換頁，速度可能掉到十分之一。": "⚠ 长上下文会占用大量显存；总用量超过约 15.3 GB 时 Windows 会换页，速度可能掉到十分之一。",
     "排序": "排序", "下載量": "下载量", "星數": "星数",
     "無 API KEY": "无 API KEY", "API KEY 已啟用": "API KEY 已启用",
     "僅提供 OpenAI 格式（無 Anthropic /v1/messages）": "仅提供 OpenAI 格式（无 Anthropic /v1/messages）",
@@ -1325,6 +1333,7 @@ const I18N = {
     "模擬宇宙已就緒，人偶，別讓我等太久。": "The Simulated Universe is ready. Don't keep me waiting, puppet.",
     "本機最接近": "Closest local", "已載入": "loaded", "使用預設值": "using defaults",
     "語言 / Language": "Language",
+    "⚠ 長上下文會佔用大量顯存；總用量超過約 15.3 GB 時 Windows 會換頁，速度可能掉到十分之一。": "⚠ Long context needs a lot of VRAM; past ~15.3 GB total Windows starts paging and throughput can drop about 10x.",
     "排序": "Sort", "下載量": "Downloads", "星數": "Stars",
     "無 API KEY": "NO API KEY", "API KEY 已啟用": "API KEY ON",
     "僅提供 OpenAI 格式（無 Anthropic /v1/messages）": "OpenAI format only (no Anthropic /v1/messages)",
@@ -1406,6 +1415,7 @@ function fillSettings(s) {
     sel.value = "0";
     $("setCtxCustom").style.display = "";
     $("setCtxCustom").value = srv.ctx;
+    updateCtxWarn();
   }
   $("setKv").value = srv.ctk || "q4_0";
   $("setNp").value = srv.parallel ?? 1;
@@ -1508,8 +1518,15 @@ document.querySelectorAll(".themeCard").forEach(card => {
     });
   };
 });
+function updateCtxWarn() {
+  const sel = $("setCtx").value;
+  const value = sel === "0" ? parseInt($("setCtxCustom").value || "0", 10) : parseInt(sel, 10);
+  $("ctxWarn").style.display = value > 131072 ? "" : "none";
+}
+$("setCtxCustom").addEventListener("input", updateCtxWarn);
 $("setCtx").addEventListener("change", e => {
   $("setCtxCustom").style.display = e.target.value === "0" ? "" : "none";
+  updateCtxWarn();
 });
 $("setSave").onclick = () => saveSettings(false);
 $("setSaveRestart").onclick = () => saveSettings(true);

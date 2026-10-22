@@ -82,7 +82,7 @@ def validate(data):
     ctv = str(srv.get("ctv", DEFAULTS["server"]["ctv"]))
     bind = str(srv.get("bind", DEFAULTS["server"]["bind"]))
     srv = {
-        "ctx": _clamp_int(srv.get("ctx"), 2048, 262144, DEFAULTS["server"]["ctx"]),
+        "ctx": _clamp_int(srv.get("ctx"), 2048, 1048576, DEFAULTS["server"]["ctx"]),
         "ctk": ctk if ctk in KV_TYPES else DEFAULTS["server"]["ctk"],
         "ctv": ctv if ctv in KV_TYPES else DEFAULTS["server"]["ctv"],
         "parallel": _clamp_int(srv.get("parallel"), 1, 8, DEFAULTS["server"]["parallel"]),

@@ -39,7 +39,22 @@ Click **設定** in the header (or open `http://127.0.0.1:8899/#settings`).
 - Everything is stored in `settings.json` next to the EXE; the panel wins over the environment variables, which stay as first-run defaults.
 - Changing anything under 模型服務 needs a model reload — the panel says so and offers **儲存並重載模型**.
 - **還原預設** writes the built-in defaults back.
-### Themes
+#
+### Long context on 16 GB
+
+Measured on an RTX 5080 (16 GB), KV cache q4_0, FlashAttention on:
+
+| Model | ctx | VRAM | short-reply speed | 16.8k-token prefill |
+| --- | --- | --- | --- | --- |
+| Qwen3.8-27B Q3_K_XL | 65 536 | 15.2 GB | 40–48 tok/s | fast |
+| Qwen3.8-27B Q3_K_XL | 131 072 | 15.9 GB | **6.5 tok/s** | **571 s** (WDDM paging) |
+| Qwen3.5-9B Q6_K_XL | 131 072 | 10.4 GB | 69 tok/s | 3.3 s (5 044 tok/s) |
+| Qwen3.5-9B Q6_K_XL | 262 144 | 12.2 GB | 59–64 tok/s | 3.3 s (5 084 tok/s) |
+
+The ceiling is not the model's advertised context but *weights + KV + compute buffers* staying under ~15.3 GB; past that Windows pages VRAM to system RAM and throughput collapses by an order of magnitude. Rough KV cost with q4_0: ~10 KB/token for a 9B, ~20 KB/token for a 27B.
+
+The context picker therefore offers up to 1 048 576 tokens and shows a VRAM warning above 131 072 — pair a big context with a smaller model rather than the other way round.
+## Themes
 
 Three skins, picked in 設定 → 介面風格, applied instantly and stored in settings.json:
 
