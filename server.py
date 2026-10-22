@@ -48,7 +48,7 @@ MMPROJ_ON = os.environ.get("HERTA_MMPROJ", "0").lower() in ("1", "on", "true", "
 # cap on thinking tokens per reply; -1 disables the cap
 REASONING_BUDGET = int(os.environ.get("HERTA_REASONING_BUDGET", "4096"))
 NGL = CONF["server"]["ngl"]
-UI_PORT = 8899
+UI_PORT = int(os.environ.get("HERTA_UI_PORT", "8899"))   # override for tests
 
 LOG_PATH = os.path.join(DATA_DIR, "llama-server.log")
 PID_PATH = os.path.join(DATA_DIR, "llama-server.pid")
