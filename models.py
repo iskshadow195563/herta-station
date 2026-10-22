@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """Model library for Herta Station: local GGUF catalogue, Hugging Face search,
 and a background downloader.
 
@@ -8,6 +8,7 @@ Everything here is stdlib-only so it survives PyInstaller's one-file build.
 import json
 import os
 import re
+import struct
 import sys
 import threading
 import time
@@ -42,6 +43,71 @@ FAMILIES = [
     ("yi-", "Yi"),
 ]
 
+
+_ctx_cache = {}
+
+
+def read_gguf_ctx(path):
+    """Native context length straight out of the GGUF metadata (``<arch>.context_length``)."""
+    try:
+        st = os.stat(path)
+    except OSError:
+        return None
+    key = (path, st.st_mtime, st.st_size)
+    if key in _ctx_cache:
+        return _ctx_cache[key]
+
+    def rd_str(fh):
+        n = struct.unpack("<Q", fh.read(8))[0]
+        return fh.read(n).decode("utf-8", "replace")
+
+    def rd_val(fh, t):
+        if t == 0: return struct.unpack("<B", fh.read(1))[0]
+        if t == 1: return struct.unpack("<b", fh.read(1))[0]
+        if t == 2: return struct.unpack("<H", fh.read(2))[0]
+        if t == 3: return struct.unpack("<h", fh.read(2))[0]
+        if t == 4: return struct.unpack("<I", fh.read(4))[0]
+        if t == 5: return struct.unpack("<i", fh.read(4))[0]
+        if t == 6: return struct.unpack("<f", fh.read(4))[0]
+        if t == 7: return struct.unpack("<B", fh.read(1))[0]
+        if t == 8: return rd_str(fh)
+        if t == 9:
+            at = struct.unpack("<I", fh.read(4))[0]
+            n = struct.unpack("<Q", fh.read(8))[0]
+            return [rd_val(fh, at) for _ in range(n)]
+        if t == 10: return struct.unpack("<Q", fh.read(8))[0]
+        if t == 11: return struct.unpack("<q", fh.read(8))[0]
+        if t == 12: return struct.unpack("<d", fh.read(8))[0]
+        raise ValueError("unknown gguf type")
+
+    value = None
+    try:
+        with open(path, "rb") as fh:
+            if fh.read(4) != b"GGUF":
+                raise ValueError("not gguf")
+            struct.unpack("<I", fh.read(4))[0]          # version
+            struct.unpack("<Q", fh.read(8))[0]          # tensor count
+            n_kv = struct.unpack("<Q", fh.read(8))[0]
+            for _ in range(n_kv):
+                name = rd_str(fh)
+                vtype = struct.unpack("<I", fh.read(4))[0]
+                val = rd_val(fh, vtype)
+                if isinstance(val, int) and name.endswith(".context_length"):
+                    value = int(val)
+    except Exception:
+        value = None
+    _ctx_cache[key] = value
+    return value
+
+
+def fmt_ctx(n):
+    if not n:
+        return ""
+    if n >= 1048576 and n % 1048576 == 0:
+        return f"{n // 1048576}M"
+    if n >= 1024:
+        return f"{round(n / 1024)}k"
+    return str(n)
 _lock = threading.Lock()
 _hw_cache = {"at": 0.0, "value": None}
 _dl = {
@@ -267,6 +333,7 @@ def scan_local(ctx=65536):
                 "params": params_of(fname),
                 "family": family_of(rel),
                 "projector": "mmproj" in fname.lower(),
+                "ctx_train": read_gguf_ctx(full),
                 "fit": fit_of(_gb(size), ctx, total),
                 "active": os.path.normcase(full) == os.path.normcase(active or ""),
             })

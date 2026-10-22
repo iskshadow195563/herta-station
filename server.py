@@ -420,6 +420,7 @@ def status():
         "vram": gpu,
         "log": lines[-40:],
         "error": _last_error,
+        "ctx_train": models.read_gguf_ctx(current_model() or ""),
         "endpoint": f"http://{HOST}:{PORT}/v1",
         "endpoint_lan": f"http://{lan}:{PORT}/v1",
         "anthropic_url": (f"http://{lan}:{_anthropic['port']}" if _anthropic["port"] else ""),

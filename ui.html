@@ -718,6 +718,7 @@
           </select>
           <input type="number" id="setCtxCustom" min="2048" max="1048576" step="1024" style="flex:0 0 130px;display:none">
         </label>
+        <div class="sethint" id="ctxCap" style="display:none"></div>
         <div class="sethint" id="ctxWarn" style="display:none">⚠ 長上下文會佔用大量顯存；總用量超過約 15.3 GB 時 Windows 會換頁，速度可能掉到十分之一。</div>
         <label class="setrow"><span>KV 快取精度</span>
           <select id="setKv">
@@ -826,6 +827,8 @@ setInterval(() => { $("quote").textContent = QUOTES[Math.floor(Math.random()*QUO
 /* ---------- render ---------- */
 function paint(s){
   state.phase = s.phase;
+  state.ctxTrain = s.ctx_train || 0;
+  if ($("setModal") && $("setModal").classList.contains("show")) updateCtxWarn();
   const panel = $("corePanel");
   panel.classList.remove("phase-idle","phase-loading","phase-running");
   panel.classList.add("phase-" + s.phase);
@@ -1030,7 +1033,7 @@ async function refreshLocal() {
       const row = document.createElement("div");
       row.className = "mtr" + (m.active && !m.projector ? " reco" : "");
       row.innerHTML = `
-        <span class="c-name">${esc(m.name)}${star}<small>${esc(m.rel)}${m.projector ? " · 視覺投影" : ""}</small></span>
+        <span class="c-name">${esc(m.name)}${star}<small>${esc(m.rel)}${m.projector ? " · 視覺投影" : ""}${m.ctx_train ? " · 原生 " + fmtCtx(m.ctx_train) : ""}</small></span>
         <span class="c-num">${m.gb} GB</span>
         <span class="c-num">${esc(m.params)}</span>
         <span class="c-num">${esc(m.quant)}</span>
@@ -1071,6 +1074,13 @@ async function hfSearch(forced) {
   } catch (e) {
     $("hfList").innerHTML = `<div class="empty">搜尋失敗：${esc(e.message)}</div>`;
   }
+}
+
+function fmtCtx(n) {
+  if (!n) return "—";
+  if (n >= 1048576 && n % 1048576 === 0) return (n / 1048576) + "M";
+  if (n >= 1024) return Math.round(n / 1024) + "k";
+  return String(n);
 }
 
 function renderHf() {
@@ -1283,6 +1293,7 @@ const I18N = {
     "模擬宇宙已就緒，人偶，別讓我等太久。": "模拟宇宙已就绪，人偶，别让我等太久。",
     "本機最接近": "本机最接近", "已載入": "已载入", "使用預設值": "使用默认值",
     "語言 / Language": "语言 / Language",
+    "此模型原生上限 {n}（{raw}），llama.cpp 會截斷到此值。": "此模型原生上限 {n}（{raw}），llama.cpp 会截断到此值。",
     "⚠ 長上下文會佔用大量顯存；總用量超過約 15.3 GB 時 Windows 會換頁，速度可能掉到十分之一。": "⚠ 长上下文会占用大量显存；总用量超过约 15.3 GB 时 Windows 会换页，速度可能掉到十分之一。",
     "排序": "排序", "下載量": "下载量", "星數": "星数",
     "無 API KEY": "无 API KEY", "API KEY 已啟用": "API KEY 已启用",
@@ -1333,6 +1344,7 @@ const I18N = {
     "模擬宇宙已就緒，人偶，別讓我等太久。": "The Simulated Universe is ready. Don't keep me waiting, puppet.",
     "本機最接近": "Closest local", "已載入": "loaded", "使用預設值": "using defaults",
     "語言 / Language": "Language",
+    "此模型原生上限 {n}（{raw}），llama.cpp 會截斷到此值。": "This model is trained for {raw} tokens ({n}); llama.cpp clamps the context to that.",
     "⚠ 長上下文會佔用大量顯存；總用量超過約 15.3 GB 時 Windows 會換頁，速度可能掉到十分之一。": "⚠ Long context needs a lot of VRAM; past ~15.3 GB total Windows starts paging and throughput can drop about 10x.",
     "排序": "Sort", "下載量": "Downloads", "星數": "Stars",
     "無 API KEY": "NO API KEY", "API KEY 已啟用": "API KEY ON",
@@ -1422,6 +1434,7 @@ function fillSettings(s) {
   $("setNgl").value = srv.ngl ?? 99;
   $("setBind").value = srv.bind || "0.0.0.0";
   $("setPort").value = srv.port ?? 11433;
+  updateCtxWarn();
   $("setKey").value = srv.apiKey || "";
   $("setAnth").checked = srv.anthropicEnabled !== false;
   $("setAnthPort").value = srv.anthropicPort ?? 11435;
@@ -1522,6 +1535,14 @@ function updateCtxWarn() {
   const sel = $("setCtx").value;
   const value = sel === "0" ? parseInt($("setCtxCustom").value || "0", 10) : parseInt(sel, 10);
   $("ctxWarn").style.display = value > 131072 ? "" : "none";
+  const train = state.ctxTrain || 0;
+  if (train && value > train) {
+    $("ctxCap").textContent = t("此模型原生上限 {n}（{raw}），llama.cpp 會截斷到此值。",
+      { n: fmtCtx(train), raw: train });
+    $("ctxCap").style.display = "";
+  } else {
+    $("ctxCap").style.display = "none";
+  }
 }
 $("setCtxCustom").addEventListener("input", updateCtxWarn);
 $("setCtx").addEventListener("change", e => {

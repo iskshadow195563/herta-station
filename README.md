@@ -53,6 +53,8 @@ Measured on an RTX 5080 (16 GB), KV cache q4_0, FlashAttention on:
 
 The ceiling is not the model's advertised context but *weights + KV + compute buffers* staying under ~15.3 GB; past that Windows pages VRAM to system RAM and throughput collapses by an order of magnitude. Rough KV cost with q4_0: ~10 KB/token for a 9B, ~20 KB/token for a 27B.
 
+
+llama.cpp clamps the context to the model's own training length (`<arch>.context_length` in the GGUF); asking for 1 048 576 on a 262 144-token model silently becomes 256k. The app now reads that value from the GGUF header, shows it as `原生 256k` in the model library and warns in the settings panel when the requested context exceeds it.
 The context picker therefore offers up to 1 048 576 tokens and shows a VRAM warning above 131 072 — pair a big context with a smaller model rather than the other way round.
 ## Themes
 
