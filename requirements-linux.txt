@@ -1,0 +1,12 @@
+# Linux dependencies.
+#
+# `pywebview[qt]` pulls in QtWebEngine as wheels, which avoids the PyGObject /
+# WebKitGTK build dance on distributions where python3-gi cannot be installed
+# into a virtualenv. If you prefer the GTK backend, install the distro packages
+# instead and drop the [qt] extra:
+#
+#   Debian/Ubuntu : sudo apt install python3-gi gir1.2-webkit2-4.1 libcairo2-dev
+#   Fedora        : sudo dnf install python3-gobject webkit2gtk4.1
+#   Arch          : sudo pacman -S python-gobject webkit2gtk-4.1
+-r requirements.txt
+pywebview[qt]>=5.0

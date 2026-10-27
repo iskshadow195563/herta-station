@@ -3,21 +3,49 @@ build/
 dist/
 *.spec
 *.egg-info/
+.venv/
+.venv-unix/
+venv/
+
+# bundled binaries (fetched on demand, ~460 MB)
+vendor/
+
+# rust build output
+tools/herta-rs/target/
+
+# models are never committed
+models/
+*.gguf
+active-model.json
+
+# installers / packages
+*.exe
+*.deb
+*.dmg
+*.app/
 
 # python
-.venv/
-venv/
 __pycache__/
 *.pyc
 
 # runtime state produced by server.py
 llama-server.log
 llama-server.pid
+settings.json
 *.log
 *.pid
+console.err.log
+console.log
+
+# local screenshots (curated ones live in docs/)
+shot-*.png
+vision-test.png
+
+# local backups
+backup-*/
 
 # editors / OS
 .vscode/
 .idea/
+.DS_Store
 Thumbs.db
-desktop.ini

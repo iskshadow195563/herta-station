@@ -1,4 +1,7 @@
-pywebview>=6.0
-# pythonnet + clr_loader come with pywebview on Windows (WebView2 backend)
-pyinstaller>=6.10
-pillow>=10.0
+# Runtime + build dependencies for Herta Station.
+#
+# The control console itself is stdlib-only; the only real dependency is the
+# native webview used for the desktop window. Without it the app still works and
+# opens the UI in the system browser (HertaStation --browser).
+pywebview>=5.0
+pyinstaller>=6.6

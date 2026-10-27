@@ -177,6 +177,8 @@ class AnthropicProxy:
     def _call(self, payload, stream=False):
         data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
         req = urllib.request.Request(self.upstream, data=data, headers=headers)
         return urllib.request.urlopen(req, timeout=3600)
 
@@ -192,16 +194,6 @@ class AnthropicProxy:
         def ev(event, data):
             return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
-        yield ev("message_start", {
-            "type": "message_start",
-            "message": {
-                "id": _msg_id(), "type": "message", "role": "assistant",
-                "model": payload.get("model") or self.alias, "content": [],
-                "stop_reason": None, "stop_sequence": None,
-                "usage": {"input_tokens": 0, "output_tokens": 0},
-            },
-        })
-
         text_index = None
         text_open = False
         tool_index = {}          # openai tool index -> (content block index, id, name)
@@ -211,6 +203,15 @@ class AnthropicProxy:
         thinking_index = None
 
         with self._call(payload, True) as resp:
+            yield ev("message_start", {
+                "type": "message_start",
+                "message": {
+                    "id": _msg_id(), "type": "message", "role": "assistant",
+                    "model": payload.get("model") or self.alias, "content": [],
+                    "stop_reason": None, "stop_sequence": None,
+                    "usage": {"input_tokens": 0, "output_tokens": 0},
+                },
+            })
             for raw in resp:
                 line = raw.decode("utf-8", "replace").strip()
                 if not line.startswith("data:"):
@@ -350,29 +351,49 @@ def _make_handler(proxy):
             path = self.path.split("?")[0]
             if not self._authorised():
                 return self._error(401, "authentication_error", "invalid api key")
-            length = int(self.headers.get("Content-Length") or 0)
             try:
+                length = int(self.headers.get("Content-Length") or 0)
+                if length < 0:
+                    raise ValueError("negative content length")
                 body = json.loads(self.rfile.read(length).decode("utf-8-sig")) if length else {}
+                if not isinstance(body, dict):
+                    raise ValueError("request body must be a JSON object")
             except Exception as exc:
                 return self._error(400, "invalid_request_error", f"bad json: {exc}")
 
             if path == "/v1/messages/count_tokens":
-                text = _blocks_to_text(body.get("messages") or [])
-                return self._json(200, {"input_tokens": max(1, int(len(text) / 3.5))})
+                try:
+                    converted = to_openai(body, proxy.alias)
+                    # A fallback estimate, not a model-tokenizer count. Include turns,
+                    # system text, images and tool schemas instead of always returning 1.
+                    text = json.dumps({"messages": converted["messages"],
+                                       "tools": converted.get("tools", [])}, ensure_ascii=False)
+                except (ValueError, TypeError, AttributeError) as exc:
+                    return self._error(400, "invalid_request_error", str(exc))
+                return self._json(200, {"input_tokens": max(1, int(len(text) / 3.5)), "estimated": True})
 
             if path != "/v1/messages":
                 return self._error(404, "not_found_error", "unknown path")
 
-            payload = to_openai(body, proxy.alias)
+            streaming = False
+            events = None
             try:
+                payload = to_openai(body, proxy.alias)
                 want_thinking = (body.get("thinking") or {}).get("type") == "enabled"
+            except (ValueError, TypeError, AttributeError) as exc:
+                return self._error(400, "invalid_request_error", str(exc))
+            try:
                 if body.get("stream"):
                     events = proxy.stream(payload, want_thinking)
+                    # Resolve upstream errors before committing an SSE 200 response.
+                    first = next(events)
                     self.send_response(200)
                     self._cors()
                     self.send_header("Content-Type", "text/event-stream")
                     self.send_header("Cache-Control", "no-cache")
                     self.end_headers()
+                    streaming = True
+                    self.wfile.write(first.encode("utf-8"))
                     for chunk in events:
                         self.wfile.write(chunk.encode("utf-8"))
                         self.wfile.flush()
@@ -380,8 +401,27 @@ def _make_handler(proxy):
                 self._json(200, proxy.complete(payload, want_thinking))
             except urllib.error.HTTPError as exc:
                 detail = exc.read().decode("utf-8", "replace")[:500]
-                self._error(502, "api_error", f"upstream {exc.code}: {detail}")
+                if not streaming:
+                    self._error(502, "api_error", f"upstream {exc.code}: {detail}")
+                else:
+                    self._sse_error(f"upstream {exc.code}: {detail}")
+            except (BrokenPipeError, ConnectionResetError):
+                pass
             except Exception as exc:
-                self._error(500, "api_error", str(exc))
+                if not streaming:
+                    self._error(500, "api_error", str(exc))
+                else:
+                    self._sse_error(str(exc))
+            finally:
+                if events is not None:
+                    events.close()
+
+        def _sse_error(self, message):
+            data = {"type": "error", "error": {"type": "api_error", "message": message}}
+            try:
+                self.wfile.write(("event: error\ndata: " + json.dumps(data) + "\n\n").encode("utf-8"))
+                self.wfile.flush()
+            except (BrokenPipeError, ConnectionResetError):
+                pass
 
     return Handler

@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
@@ -101,10 +101,9 @@
   .ring.arc2{stroke:var(--violet);stroke-width:2.4;opacity:.6;stroke-linecap:round;stroke-dasharray:calc(0.13 * 2 * 3.14159 * 88) calc(0.87 * 2 * 3.14159 * 88)}
   /* rotate each group around its own centre; without transform-box the circles
      swing around the SVG origin and the rings look torn apart */
-  .r1,.r2,.r3{transform-box:fill-box;transform-origin:50% 50%}
-  .r1{animation:spin 46s linear infinite}
-  .r2{animation:spin 26s linear reverse infinite}
-  .r3{animation:spin 18s linear infinite}
+  .r1,.r2,.r3{transform-box:fill-box;transform-origin:50% 50%;will-change:transform}
+  .ring,.hex{transition:stroke .55s ease,opacity .55s ease,filter .55s ease}
+  .core-label .state,.core-label .sub{transition:color .45s ease,opacity .18s ease}
   .hex{fill:url(#hexFill);stroke:rgba(111,242,255,.5);stroke-width:1.2}
   .core-label{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;
     justify-content:center;text-align:center;pointer-events:none}
@@ -114,15 +113,9 @@
   .core-label .tick{margin-top:5px;font-size:9.5px;letter-spacing:.2em;color:var(--warn);height:11px;padding-left:.2em}
 
   .phase-loading .ring.arc,.phase-loading .ring.arc2{stroke:var(--warn);opacity:.95}
-  .phase-loading .r1{animation-duration:6s}
-  .phase-loading .r2{animation-duration:4s}
-  .phase-loading .r3{animation-duration:3s}
   .phase-running .ring.arc{stroke:var(--ok);opacity:.95}
   .phase-running .ring.arc2{stroke:var(--violet);opacity:.9}
   .phase-running .hex{stroke:var(--ok);filter:drop-shadow(0 0 10px rgba(92,242,192,.55))}
-  .phase-running .r1{animation-duration:22s}
-  .phase-running .r2{animation-duration:12s}
-  .phase-running .r3{animation-duration:9s}
   .phase-running .core-label .state{color:#eafff8;text-shadow:0 0 26px rgba(92,242,192,.6)}
 
   .controls{flex:0 0 auto;display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:8px}
@@ -155,6 +148,7 @@
   .vram .ticks{position:absolute;inset:0;background-image:repeating-linear-gradient(90deg,transparent 0 23px,rgba(5,7,15,.8) 23px 24px)}
   .vram .legend{display:flex;justify-content:space-between;margin-top:5px;font-size:10px;letter-spacing:.14em;color:var(--dim)}
   .vram .legend b{color:#eaf7ff;font-weight:500}
+  .vramhint{margin-top:4px;font-size:10px;letter-spacing:.06em;color:var(--warn,#ffb347)}
   .lanrow{display:flex;align-items:center;gap:10px;margin-top:8px;font-size:10.5px;letter-spacing:.06em;color:#bfe6ff}
   .lanrow .lanlabel{color:var(--cyan);letter-spacing:.2em}
   .keybadge{margin-left:auto;font-size:9px;letter-spacing:.14em;padding:2px 7px;border:1px solid var(--line)}
@@ -275,6 +269,30 @@
   .pick .tier{font-size:9px;letter-spacing:.2em;color:var(--cyan)}
   .pick.primary .tier{color:var(--gold)}
   .reco-actions{display:flex;gap:8px;margin-top:9px}
+
+  .reco-head2{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+  .reco-head2 .rt{font-size:11.5px;letter-spacing:.2em;color:var(--cyan)}
+  .reco-head2 .rh{font-size:10px;letter-spacing:.1em;color:var(--dim)}
+  .pcard{border:1px solid var(--line);background:rgba(10,16,32,.55);padding:10px 12px;
+    display:grid;grid-template-columns:1fr auto;gap:2px 14px;align-items:start}
+  .pcard:hover{border-color:rgba(111,242,255,.35)}
+  .pcard-main{display:flex;flex-direction:column;gap:4px;min-width:0}
+  .pcard-side{display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between;
+    gap:10px;align-self:stretch}
+  .pcard-top{display:flex;align-items:center;gap:8px}
+  .pcard .pname{font-size:13px;color:var(--text,#e8f4ff);letter-spacing:.02em}
+  .ptag{font-size:10px;letter-spacing:.1em;padding:2px 7px;border:1px solid var(--line);white-space:nowrap}
+  .ptag.ok{color:#7bffcf;border-color:rgba(123,255,207,.45)}
+  .ptag.tight{color:#ffcf7b;border-color:rgba(255,207,123,.45)}
+  .ptag.over{color:#ff8a8a;border-color:rgba(255,138,138,.45)}
+  .pcard .psub{font-size:10.5px;color:var(--dim);letter-spacing:.04em}
+  .pcard .pmeta{display:flex;gap:12px;flex-wrap:wrap;font-size:10.5px;color:var(--dim)}
+  .pcard .pnote{color:var(--cyan);opacity:.85}
+  .pcard-act{display:flex;justify-content:flex-end;gap:8px}
+  body.theme-ollama .pcard{background:#fafafa;border-color:#e6e6e9}
+  body.theme-ollama .pcard .pname{color:#111}
+  body.theme-xp .pcard{background:#ece9d8;border:1px solid #808080}
+  body.theme-xp .pcard .pname{color:#000}
 
   /* ---------- settings ---------- */
   body.no-anim #stars{display:none}
@@ -563,7 +581,7 @@
       <button class="btn ghost" id="btnPurge">清空顯存</button>
       <button class="btn ghost" id="btnTest">連線測試</button>
     </div>
-    <div class="hint mono"><span>AGENT BASE_URL</span><b>http://127.0.0.1:11433/v1</b></div>
+    <div class="hint mono"><span>AGENT BASE_URL</span><b id="agentEndpoint">http://127.0.0.1:11433/v1</b></div>
   </section>
 
   <section class="panel">
@@ -583,6 +601,7 @@
     <div class="vram">
       <div class="bar"><div class="fill" id="vramFill"></div><div class="ticks"></div></div>
       <div class="legend"><span>VRAM <b class="mono" id="vramText">—</b></span><span class="mono" id="gpuName">—</span></div>
+      <div class="vramhint mono" id="vramHint" hidden></div>
     </div>
     <div class="lanrow mono">
       <span class="lanlabel">ANTHROPIC</span>
@@ -606,16 +625,17 @@
   <span class="mono">llama.cpp b11756 · CUDA 13.4 · sm_120 · <span id="footNote">OpenAI /v1 + Anthropic /v1/messages</span></span>
 </footer>
 
-<div class="modal" id="libModal">
+<div class="modal" id="libModal" role="dialog" aria-modal="true" aria-labelledby="libTitle" tabindex="-1">
   <div class="modal-card">
     <div class="modal-head">
-      <span class="tag">模型庫</span>
+      <span class="tag" id="libTitle">模型庫</span>
       <span class="mono dir" id="libDir">—</span>
       <button class="x" id="libClose">✕</button>
     </div>
 
     <div class="tabs">
       <button class="tab active" data-tab="local" id="tabLocal">本機模型</button>
+      <button class="tab" data-tab="rec" id="tabRec">推薦</button>
       <button class="tab" data-tab="search" id="tabSearch">Hugging Face 搜尋</button>
       <button class="tab" data-tab="dl" id="tabDl">下載</button>
     </div>
@@ -652,6 +672,15 @@
       <div class="mlist" id="hfList"><div class="empty">輸入模型名稱開始搜尋。</div></div>
     </div>
 
+    <div class="tabpane hidden" id="paneRec">
+      <div class="reco-head2">
+        <span class="rt">精選模型 · 一鍵下載</span>
+        <span class="rh mono" id="recMeta">偵測中…</span>
+      </div>
+      <div class="mlist" id="recList"><div class="empty">讀取推薦清單…</div></div>
+      <div class="hintline mono" id="recHint">下載完成會自動套用，並依顯存自動配置上下文與 KV 快取。</div>
+    </div>
+
     <div class="tabpane hidden" id="paneDl">
       <div class="dlrow"><span id="dlName">沒有進行中的下載</span><span id="dlPct">0%</span></div>
       <div class="dlbars"><div class="fill" id="dlFill"></div></div>
@@ -664,10 +693,10 @@
   </div>
 </div>
 
-<div class="modal" id="setModal">
+<div class="modal" id="setModal" role="dialog" aria-modal="true" aria-labelledby="setTitle" tabindex="-1">
   <div class="modal-card" style="width:min(780px,92vw);height:auto;max-height:92vh">
     <div class="modal-head">
-      <span class="tag">設定</span>
+      <span class="tag" id="setTitle">設定</span>
       <span class="mono dir" id="setPath">settings.json</span>
       <button class="x" id="setClose">✕</button>
     </div>
@@ -725,6 +754,8 @@
             <option value="f16">f16（最準，最吃記憶體）</option>
             <option value="q8_0">q8_0</option>
             <option value="q5_1">q5_1</option>
+            <option value="q5_0">q5_0</option>
+            <option value="q4_1">q4_1</option>
             <option value="q4_0">q4_0（最省，速度快）</option>
           </select>
         </label>
@@ -745,6 +776,9 @@
         </label>
         <label class="setrow"><span>API Key</span>
           <input type="text" id="setKey" placeholder="留空 = 不驗證" autocomplete="off">
+        </label>
+        <label class="setrow"><span>切換模型時自動配置</span>
+          <input type="checkbox" id="setAutoPlan">
         </label>
         <label class="setrow"><span>Anthropic /v1/messages</span>
           <input type="checkbox" id="setAnth">
@@ -798,6 +832,52 @@ const state = { phase: "idle", loadingSince: 0 };
 
 /* ---------- helpers ---------- */
 let toastTimer;
+const PURGE = { busy: false };
+const ERROR_TEXT = {
+  settings_invalid: "設定格式無效", settings_write_failed: "設定無法寫入磁碟",
+  missing_executable: "找不到模型伺服器", missing_model: "找不到模型檔案",
+  port_in_use: "連接埠已被其他程序使用", out_of_memory: "模型載入失敗：記憶體不足",
+  model_exited: "模型程序已意外結束", launch_failed: "模型啟動失敗",
+  stop_failed: "模型停止失敗",
+  download_incomplete: "下載不完整，請重新下載", download_invalid: "下載內容不是 GGUF 模型",
+  download_cancelled: "下載已取消", download_failed: "下載失敗",
+  invalid_download: "下載來源或檔名無效", selection_write_failed: "模型已下載，但無法儲存選擇",
+};
+function resultMessage(result) {
+  const key = ERROR_TEXT[result.error_code];
+  return key ? t(key) : (result.message || result.error || "");
+}
+const modalOpeners = new WeakMap();
+function showModal(id, focusId) {
+  const modal = $(id);
+  if (!modal.classList.contains("show")) modalOpeners.set(modal, document.activeElement);
+  modal.classList.add("show");
+  ($(focusId) || modal).focus();
+}
+function closeModal(id) {
+  const modal = $(id);
+  modal.classList.remove("show");
+  const opener = modalOpeners.get(modal);
+  if (opener && opener.isConnected) opener.focus();
+}
+document.addEventListener("keydown", e => {
+  const modal = [...document.querySelectorAll(".modal.show")].pop();
+  if (!modal) return;
+  if (e.key === "Escape") {
+    e.preventDefault();
+    modal.id === "libModal" ? libClose() : closeModal(modal.id);
+  } else if (e.key === "Tab") {
+    const items = [...modal.querySelectorAll("button, input, select, textarea, [href], [tabindex]")]
+      .filter(el => !el.disabled && el.tabIndex >= 0 && el.getClientRects().length);
+    const first = items[0], last = items[items.length - 1];
+    if (!first) { e.preventDefault(); modal.focus(); return; }
+    if (!modal.contains(document.activeElement) || document.activeElement === modal
+        || (e.shiftKey && document.activeElement === first) || (!e.shiftKey && document.activeElement === last)) {
+      e.preventDefault();
+      (e.shiftKey ? last : first).focus();
+    }
+  }
+});
 function toast(msg, bad){
   const t = $("toast");
   t.textContent = msg;
@@ -824,27 +904,74 @@ const QUOTES = [
 ];
 setInterval(() => { $("quote").textContent = QUOTES[Math.floor(Math.random()*QUOTES.length)]; }, 12000);
 
+/* ---------- reactor rings ---------- */
+/* The rings are integrated here instead of with CSS keyframes: a per-phase
+   animation-duration makes the angle snap on every phase change, which read as
+   a stutter when starting or stopping the module. Speed now eases, angle never
+   jumps, and the 背景動畫 switch actually stops them (it used to miss the <g>). */
+const SPIN = {
+  idle:    [7.8, -13.8, 20.0],      // deg/s per ring
+  loading: [58.0, -92.0, 126.0],
+  running: [16.4, -30.0, 40.0],
+};
+const REACTOR = { els: [], ang: [0, 0, 0], spd: [0, 0, 0], tgt: SPIN.idle.slice(), last: 0, raf: 0 };
+
+function reactorInit(){
+  REACTOR.els = [".r1", ".r2", ".r3"].map(sel => document.querySelector(".reactor " + sel));
+  if (REACTOR.els.some(el => !el)) return;
+  REACTOR.spd = REACTOR.tgt.slice();
+  const frame = (ts) => {
+    const dt = REACTOR.last ? Math.min(0.05, (ts - REACTOR.last) / 1000) : 0;
+    REACTOR.last = ts;
+    const frozen = document.body.classList.contains("no-anim") || document.hidden;
+    for (let i = 0; i < 3; i++){
+      const goal = frozen ? 0 : REACTOR.tgt[i];
+      REACTOR.spd[i] += (goal - REACTOR.spd[i]) * Math.min(1, dt * 3.2);
+      if (Math.abs(goal - REACTOR.spd[i]) < 0.05) REACTOR.spd[i] = goal;
+      REACTOR.ang[i] = (REACTOR.ang[i] + REACTOR.spd[i] * dt) % 360;
+      REACTOR.els[i].style.transform = `rotate(${REACTOR.ang[i].toFixed(2)}deg)`;
+    }
+    REACTOR.raf = requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
+}
+
+function reactorPhase(phase){
+  REACTOR.tgt = (SPIN[phase] || SPIN.idle).slice();
+}
+
+const PHASE_TEXT = {
+  idle:    ["待機",   "IDLE // VRAM RELEASED",     "LINK STANDBY"],
+  loading: ["載入中", "LOADING WEIGHTS → VRAM",    "LINK SYNCING"],
+  running: ["運行中", "ONLINE // SERVING /v1",     "LINK ONLINE"],
+};
+
+/* Single place that swaps the core's visual state, so a click can repaint it
+   immediately instead of waiting for the next 1.5 s poll. */
+function applyPhase(phase){
+  const panel = $("corePanel");
+  if (!panel || panel.dataset.phase === phase) return;
+  panel.classList.remove("phase-idle","phase-loading","phase-running");
+  panel.classList.add("phase-" + phase);
+  panel.dataset.phase = phase;
+  reactorPhase(phase);
+  const row = PHASE_TEXT[phase] || PHASE_TEXT.idle;
+  $("stateText").textContent = t(row[0]);
+  $("stateSub").textContent  = row[1];
+  $("connText").textContent  = row[2];
+  $("chipConn").classList.toggle("on", phase === "running");
+  $("chipConn").classList.toggle("load", phase === "loading");
+  if (phase === "idle") $("stateTick").textContent = "";
+}
+
 /* ---------- render ---------- */
 function paint(s){
   state.phase = s.phase;
   state.ctxTrain = s.ctx_train || 0;
+  state.platform = s.platform || "windows";
   if ($("setModal") && $("setModal").classList.contains("show")) updateCtxWarn();
   const panel = $("corePanel");
-  panel.classList.remove("phase-idle","phase-loading","phase-running");
-  panel.classList.add("phase-" + s.phase);
-
-  const map = {
-    idle:    [t("待機"), "IDLE // VRAM RELEASED", "LINK STANDBY"],
-    loading: [t("載入中"), "LOADING WEIGHTS → VRAM", "LINK SYNCING"],
-    running: [t("運行中"), "ONLINE // SERVING /v1", "LINK ONLINE"]
-  };
-  $("stateText").textContent = map[s.phase][0];
-  $("stateSub").textContent  = map[s.phase][1];
-  $("connText").textContent  = map[s.phase][2];
-
-  const chip = $("chipConn");
-  chip.classList.toggle("on", s.phase === "running");
-  chip.classList.toggle("load", s.phase === "loading");
+  if (panel.dataset.phase !== s.phase) applyPhase(s.phase);
 
   if (s.phase === "loading"){
     if (!state.loadingSince) state.loadingSince = Date.now();
@@ -863,6 +990,7 @@ function paint(s){
   $("vUp").textContent = fmtUp(s.uptime);
   $("vTps").textContent = s.tps ? s.tps.toFixed(1) + " tok/s" : "—";
   $("vLan").textContent = s.endpoint_lan || "—";
+  $("agentEndpoint").textContent = s.endpoint || "—";
   $("vAnthropic").textContent = s.anthropic_url ? s.anthropic_url + "  ·  /v1/messages" : (s.anthropic_enabled === false ? "off" : "—");
   const kb = $("keyBadge");
   kb.textContent = s.api_key ? t("API KEY 已啟用") : t("無 API KEY");
@@ -875,10 +1003,20 @@ function paint(s){
   $("vramFill").style.width = pct.toFixed(1) + "%";
   $("vramText").textContent = `${fmtGB(v.used)} / ${fmtGB(v.total)}  (${pct.toFixed(0)}%)`;
   $("gpuName").textContent = v.gpu || "—";
+  const hint = $("vramHint");
+  if (s.phase === "idle" && v.used > 3500) {
+    hint.hidden = false;
+    hint.textContent = t("桌面其他程式佔用 {x}，模型可能放不進顯存", { x: fmtGB(v.used) });
+  } else {
+    hint.hidden = true;
+  }
 
   $("btnStart").disabled = s.phase !== "idle";
   $("btnStop").disabled  = s.phase === "idle";
   $("btnTest").disabled  = s.phase !== "running";
+  // Purge stops the model itself, so it stays clickable in every phase.
+  $("btnPurge").disabled = PURGE.busy;
+  if (s.error) $("stateTick").textContent = resultMessage(s);
 
   const logBox = $("log");
   const text = (s.log || []).map(line => {
@@ -889,7 +1027,9 @@ function paint(s){
     const safe = line.replace(/[&<>]/g, ch => ({ "&":"&amp;","<":"&lt;",">":"&gt;" }[ch]));
     return cls ? `<span class="${cls}">${safe}</span>` : safe;
   }).join("\n");
-  applyLang();
+  // No applyLang() here: it walked the whole DOM every 1.5 s, blocking the
+  // reactor's rAF loop on start/stop. Every dynamic string above already goes
+  // through t() at render time, so the walk only matters when the language changes.
   if (logBox.dataset.raw !== text){
     logBox.dataset.raw = text;
     logBox.innerHTML = text || "（尚無日誌 · llama-server 未啟動）";
@@ -911,21 +1051,36 @@ async function act(path){
   try {
     const r = await fetch(path, { method: "POST" });
     const d = await r.json();
-    toast(d.message || (d.ok ? "完成" : "失敗"), !d.ok);
+    toast(resultMessage(d) || t(d.ok ? "完成" : "失敗"), !d.ok);
   } catch (e) {
     toast("控制台連線失敗：" + e.message, true);
   }
   poll();
 }
 
-$("btnStart").onclick = () => { toast("正在載入權重，請稍候…"); act("/api/start"); };
-$("btnStop").onclick  = () => { toast("正在卸載模型並釋放顯存…"); act("/api/stop"); };
-$("btnPurge").onclick = () => { toast("正在清空 Ollama / llama-server 佔用的顯存…"); act("/api/purge"); };
+/* Repaint the core immediately on click: waiting for the next poll made the
+   rings keep their old speed for up to 1.5 s, which read as a broken animation. */
+$("btnStart").onclick = () => {
+  state.loadingSince = Date.now();
+  applyPhase("loading");
+  toast("正在載入權重，請稍候…");
+  act("/api/start");
+};
+$("btnStop").onclick  = () => { applyPhase("idle"); toast("正在卸載模型並釋放顯存…"); act("/api/stop"); };
+$("btnPurge").onclick = async () => {
+  if (PURGE.busy) return;
+  PURGE.busy = true;
+  $("btnPurge").disabled = true;
+  toast("正在停止模型並清空顯存（含 Ollama 與殘留程序）…");
+  await act("/api/purge");
+  PURGE.busy = false;
+  $("btnPurge").disabled = false;
+};
 $("btnTest").onclick  = () => { act("/api/selftest"); };
 
 /* ---------- model library ---------- */
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
-const LIB = { hf: [], filters: { provider: "all", params: "all", quant: "all", sort: "downloads" }, dlTimer: null, dlDone: false, reco: null, lastQuery: "" };
+const LIB = { hf: [], filters: { provider: "all", params: "all", quant: "all", sort: "downloads" }, dlTimer: null, dlDone: false, reco: null, lastQuery: "", searchId: 0, rec: [], rust: "" };
 
 const PROVIDERS = [["all","全部"],["Qwen","Qwen"],["DeepSeek","DeepSeek"],["Llama","Llama"],["Gemma","Gemma"],["Mistral","Mistral"],["GLM","GLM"],["其他","其他"]];
 const PARAM_BUCKETS = [["all","全部"],["s","≤4B"],["m","7–9B"],["l","13–14B"],["xl","27–32B"],["xxl","70B+"]];
@@ -968,25 +1123,111 @@ function selectChip(hostId, value) {
 }
 
 function libOpen() {
-  $("libModal").classList.add("show");
+  showModal("libModal", "tabLocal");
   refreshLocal();
   loadRecommend();
   if (!LIB.dlTimer) LIB.dlTimer = setInterval(pollDownload, 1000);
   pollDownload();
 }
 function libClose() {
-  $("libModal").classList.remove("show");
+  closeModal("libModal");
   if (LIB.dlTimer) { clearInterval(LIB.dlTimer); LIB.dlTimer = null; }
   if (LIB.dlDone) resetDl();
 }
 function libTab(name) {
-  ["local", "search", "dl"].forEach(t => {
+  ["local", "rec", "search", "dl"].forEach(t => {
     $("pane" + t[0].toUpperCase() + t.slice(1)).classList.toggle("hidden", t !== name);
     $("tab" + t[0].toUpperCase() + t.slice(1)).classList.toggle("active", t === name);
   });
+  if (name === "rec" && !LIB.rec.length) loadPresets();
 }
 
 const LOCAL_HEAD = `<div class="mhead"><span>模型名稱</span><span class="c-num">大小</span><span class="c-num">參數</span><span class="c-num">量化</span><span>顯存評估</span><span class="c-act">操作</span></div>`;
+
+async function selectModel(path, label) {
+  if (!confirm(`切換到 ${label}？\n模型會重新載入（約 10–30 秒）。`)) return;
+  toast(t("切換模型中…"));
+  const r = await (await fetch(`/api/select?path=${encodeURIComponent(path)}`, { method: "POST" })).json();
+  toast(resultMessage(r) || r.message, !r.ok);
+  refreshLocal(); poll();
+}
+
+async function loadPresets() {
+  $("recList").innerHTML = `<div class="empty">${t("讀取推薦清單…")}</div>`;
+  try {
+    const d = await (await fetch("/api/presets", { cache: "no-store" })).json();
+    if (!d.ok) throw new Error(d.message || "presets failed");
+    LIB.rec = d.items || [];
+    LIB.rust = d.rust || "";
+    renderRec(d.models_dir || "");
+  } catch (err) {
+    $("recList").innerHTML = `<div class="empty">${esc(String(err.message || err))}</div>`;
+  }
+}
+
+function renderRec(modelsDir) {
+  const hw = (LIB.reco && LIB.reco.hardware) || {};
+  $("recMeta").textContent = `${hw.gpu || "?"} · ${hw.vram_gb || "?"} GB` +
+    (modelsDir ? ` · ${modelsDir}` : "");
+  $("recHint").textContent = LIB.rust
+    ? t("下載引擎：herta-rs（多連線續傳）")
+    : t("下載完成會自動套用，並依顯存自動配置上下文與 KV 快取。");
+  const box = $("recList");
+  box.innerHTML = "";
+  LIB.rec.forEach(p => {
+    const fit = p.fit || {};
+    const lvl = fit.level || "over";
+    const cls = lvl === "ok" ? "ok" : (lvl === "tight" ? "tight" : "over");
+    const el = document.createElement("div");
+    el.className = "pcard";
+    const meta = [
+      p.params ? `${esc(p.params)}` : "",
+      p.quant ? esc(p.quant) : "",
+      `${p.files > 1 ? t("共 {n} 檔").replace("{n}", p.files) : "單檔"}`,
+    ].filter(Boolean).join(" · ");
+    const action = p.installed
+      ? `<button class="mini use" data-use="${esc(p.entry)}">${t("使用")}</button>`
+      : (p.partial
+        ? `<button class="mini" data-dl="${esc(p.id)}">${t("續傳 {p}%").replace("{p}", Math.floor(100 * (p.downloaded_gb || 0) / Math.max(0.01, p.disk_gb)))}</button>`
+        : `<button class="mini use" data-dl="${esc(p.id)}"${p.disk_ok ? "" : " disabled"}>${t("下載")}</button>`);
+    el.innerHTML = `
+      <div class="pcard-main">
+        <div class="pcard-top">
+          <span class="pname">${esc(p.name)}</span>
+        </div>
+        <div class="psub mono">${esc(p.repo)} · ${meta}</div>
+        <div class="pmeta mono">
+          <span>${t("權重 {a} GB · 佔盤 {b} GB").replace("{a}", p.weight_gb).replace("{b}", p.disk_gb)}</span>
+          ${p.note ? `<span class="pnote">${esc(p.note)}</span>` : ""}
+        </div>
+      </div>
+      <div class="pcard-side">
+        <span class="ptag ${cls}">${esc(fit.label || "")}</span>
+        ${action}
+      </div>`;
+    box.appendChild(el);
+  });
+  box.querySelectorAll("[data-dl]").forEach(btn => {
+    btn.onclick = () => startPreset(btn.dataset.dl, btn);
+  });
+  box.querySelectorAll("[data-use]").forEach(btn => {
+    btn.onclick = () => {
+      const name = btn.dataset.use.split(/[\\/]/).pop();
+      selectModel(btn.dataset.use, name);
+    };
+  });
+}
+
+async function startPreset(id, btn) {
+  const item = LIB.rec.find(p => p.id === id);
+  btn.disabled = true;
+  LIB.dlDone = false;
+  toast(t("開始下載 {n}", { n: item ? item.name : id }));
+  const r = await act("/api/preset/download", { id });
+  if (!r.ok) { btn.disabled = false; return; }
+  libTab("dl");
+  pollDownload();
+}
 
 async function loadRecommend() {
   try {
@@ -1056,6 +1297,7 @@ async function refreshLocal() {
 }
 
 async function hfSearch(forced) {
+  const searchId = ++LIB.searchId;
   const typed = $("hfQ").value.trim();
   const q = (forced !== undefined ? String(forced) : typed).trim();
   if (!q) {
@@ -1067,11 +1309,13 @@ async function hfSearch(forced) {
   try {
     LIB.lastQuery = q;
     const d = await (await fetch(`/api/hf/search?q=${encodeURIComponent(q)}&limit=${wide ? 80 : 40}&sort=${LIB.filters.sort}`, { cache: "no-store" })).json();
+    if (searchId !== LIB.searchId) return;
     if (!d.ok) { $("hfList").innerHTML = `<div class="empty">搜尋失敗：${esc(d.message)}</div>`; return; }
     LIB.hf = d.items || [];
     if (wide) $("hfQ").value = "";
     renderHf();
   } catch (e) {
+    if (searchId !== LIB.searchId) return;
     $("hfList").innerHTML = `<div class="empty">搜尋失敗：${esc(e.message)}</div>`;
   }
 }
@@ -1128,7 +1372,7 @@ function renderHf() {
           line.querySelector("button").onclick = async () => {
             if (!confirm(`下載 ${f.name}（${f.gb} GB）到模型資料夾？`)) return;
             const r = await (await fetch(`/api/hf/download?repo=${encodeURIComponent(repo.id)}&file=${encodeURIComponent(f.name)}`, { method: "POST" })).json();
-            toast(r.message, !r.ok);
+            toast(resultMessage(r), !r.ok);
             libTab("dl"); pollDownload();
           };
           holder.appendChild(line);
@@ -1146,7 +1390,10 @@ function renderHf() {
 }
 
 async function resetDl() {
-  try { await fetch("/api/download/reset", { method: "POST" }); } catch (e) { /* ignore */ }
+  try {
+    const result = await (await fetch("/api/download/reset", { method: "POST" })).json();
+    if (!result.ok) return;
+  } catch (e) { return; }
   LIB.dlDone = false;
   $("dlName").textContent = "沒有進行中的下載";
   $("dlPct").textContent = "0%";
@@ -1173,14 +1420,14 @@ async function pollDownload() {
         $("dlName").textContent = "下載失敗";
         $("dlMeta").textContent = d.error;
         $("dlFill").style.width = "0%";
-        toast("下載失敗：" + d.error, true);
+        toast(resultMessage(d), d.error_code !== "download_cancelled");
         setTimeout(() => { resetDl(); }, 2500);
       } else {
         $("dlName").textContent = "下載完成";
         $("dlPct").textContent = "100%";
         $("dlFill").style.width = "100%";
         $("dlMeta").textContent = d.path;
-        toast("下載完成，已設為預設模型");
+        toast(t(/mmproj/i.test(d.file) ? "投影檔下載完成" : "下載完成，已設為預設模型"));
         refreshLocal();
         // clear the bar and jump back to the local list, so it doesn't linger
         setTimeout(() => { resetDl(); libTab("local"); }, 1400);
@@ -1207,7 +1454,7 @@ $("btnRecoSearch").onclick = () => {
   $("hfQ").value = hint;
   hfSearch();
 };
-$("hfGo").onclick = hfSearch;
+$("hfGo").onclick = () => hfSearch();
 $("hfQ").addEventListener("keydown", e => { if (e.key === "Enter") hfSearch(); });
 $("dlCancel").onclick = async () => {
   const r = await (await fetch("/api/download/cancel", { method: "POST" })).json();
@@ -1252,7 +1499,12 @@ buildChips("fQuant", QUANT_BUCKETS, "quant");
 const LANGS = ["zh-Hant", "zh-Hans", "en"];
 let LANG = "zh-Hant";
 const I18N = {
-  "zh-Hant": {},
+  "zh-Hant": {
+    /* keys that already carry their own arguments (not plain source strings) */
+    "RECO_HW": "{gpu} · {vram} GB 顯存 · 上下文 {ctx} · 可用權重 {w} GB",
+    "PICK_META": "約 {gb} GB · 餘量 {free} GB",
+    "LOCAL_META": "{n} 個 GGUF · GPU {gpu} GB · 目前上下文 {ctx}",
+  },
   "zh-Hans": {
     "模擬宇宙 · 本地推理終端": "模拟宇宙 · 本地推理终端",
     "設定": "设置", "模型庫 · MODELS": "模型库 · MODELS", "核心": "核心",
@@ -1295,6 +1547,8 @@ const I18N = {
     "語言 / Language": "语言 / Language",
     "此模型原生上限 {n}（{raw}），llama.cpp 會截斷到此值。": "此模型原生上限 {n}（{raw}），llama.cpp 会截断到此值。",
     "⚠ 長上下文會佔用大量顯存；總用量超過約 15.3 GB 時 Windows 會換頁，速度可能掉到十分之一。": "⚠ 长上下文会占用大量显存；总用量超过约 15.3 GB 时 Windows 会换页，速度可能掉到十分之一。",
+    "⚠ 長上下文會佔用大量顯存；超過顯存上限時驅動會退回系統記憶體，速度可能掉到十分之一。": "⚠ 长上下文会占用大量显存；超过显存上限时驱动会退回系统内存，速度可能掉到十分之一。",
+    "⚠ 長上下文會佔用大量統一記憶體；與 macOS 其他程式搶記憶體時速度可能掉到十分之一。": "⚠ 长上下文会占用大量统一内存；与 macOS 其他程序抢内存时速度可能掉到十分之一。",
     "排序": "排序", "下載量": "下载量", "星數": "星数",
     "無 API KEY": "无 API KEY", "API KEY 已啟用": "API KEY 已启用",
     "僅提供 OpenAI 格式（無 Anthropic /v1/messages）": "仅提供 OpenAI 格式（无 Anthropic /v1/messages）",
@@ -1346,6 +1600,8 @@ const I18N = {
     "語言 / Language": "Language",
     "此模型原生上限 {n}（{raw}），llama.cpp 會截斷到此值。": "This model is trained for {raw} tokens ({n}); llama.cpp clamps the context to that.",
     "⚠ 長上下文會佔用大量顯存；總用量超過約 15.3 GB 時 Windows 會換頁，速度可能掉到十分之一。": "⚠ Long context needs a lot of VRAM; past ~15.3 GB total Windows starts paging and throughput can drop about 10x.",
+    "⚠ 長上下文會佔用大量顯存；超過顯存上限時驅動會退回系統記憶體，速度可能掉到十分之一。": "⚠ Long context needs a lot of VRAM; once it exceeds the card the driver spills to system RAM and throughput can drop about 10x.",
+    "⚠ 長上下文會佔用大量統一記憶體；與 macOS 其他程式搶記憶體時速度可能掉到十分之一。": "⚠ Long context eats a lot of unified memory; competing with macOS for RAM can drop throughput about 10x.",
     "排序": "Sort", "下載量": "Downloads", "星數": "Stars",
     "無 API KEY": "NO API KEY", "API KEY 已啟用": "API KEY ON",
     "僅提供 OpenAI 格式（無 Anthropic /v1/messages）": "OpenAI format only (no Anthropic /v1/messages)",
@@ -1356,6 +1612,58 @@ const I18N = {
     "SEARCHING": "Searching “{q}”…",
   },
 };
+
+// Explicit entries for new messages in all supported languages.
+[
+  ["設定格式無效", "设置格式无效", "Invalid settings format"],
+  ["設定無法寫入磁碟", "设置无法写入磁盘", "Could not save settings to disk"],
+  ["找不到模型伺服器", "找不到模型服务器", "Model server executable not found"],
+  ["找不到模型檔案", "找不到模型文件", "Model file not found"],
+  ["連接埠已被其他程序使用", "端口已被其他进程使用", "Port is in use by another process"],
+  ["模型載入失敗：記憶體不足", "模型加载失败：内存不足", "Model load failed: out of memory"],
+  ["模型程序已意外結束", "模型进程已意外结束", "Model process exited unexpectedly"],
+  ["模型啟動失敗", "模型启动失败", "Model failed to start"],
+  ["模型停止失敗", "模型停止失败", "Model failed to stop"],
+  ["請先停止模型再清空顯存", "请先停止模型再清空显存", "Stop the model before freeing VRAM"],
+  ["下載不完整，請重新下載", "下载不完整，请重新下载", "Incomplete download; please try again"],
+  ["下載內容不是 GGUF 模型", "下载内容不是 GGUF 模型", "Downloaded file is not a GGUF model"],
+  ["下載已取消", "下载已取消", "Download cancelled"],
+  ["下載失敗", "下载失败", "Download failed"],
+  ["下載來源或檔名無效", "下载来源或文件名无效", "Invalid download source or filename"],
+  ["模型已下載，但無法儲存選擇", "模型已下载，但无法保存选择", "Model downloaded, but selection could not be saved"],
+  ["投影檔下載完成", "投影文件下载完成", "Projector download complete"],
+  ["下載完成，已設為預設模型", "下载完成，已设为默认模型", "Download complete; selected as the default model"],
+  ["模型重新載入失敗", "模型重新加载失败", "Model reload failed"],
+  ["儲存失敗", "保存失败", "Save failed"],
+  ["完成", "完成", "Done"], ["失敗", "失败", "Failed"],
+  ["設定已儲存", "设置已保存", "Settings saved"],
+  ["已儲存", "已保存", "Saved"],
+  ["已儲存（模型服務重新載入後生效）", "已保存（模型服务重新加载后生效）", "Saved; applies after the model reloads"],
+  ["已儲存，正在重新載入模型…", "已保存，正在重新加载模型…", "Saved; reloading the model…"],
+  ["已還原預設值", "已还原默认值", "Defaults restored"],
+  ["Anthropic 連接埠", "Anthropic 端口", "Anthropic port"],
+  ["切換模型時自動配置", "切换模型时自动配置", "Auto-tune context on switch"],
+  ["上下文已自動調整", "上下文已自动调整", "Context auto-tuned"],
+  ["桌面其他程式佔用 {x}，模型可能放不進顯存", "桌面其他程序占用 {x}，模型可能放不进显存",
+   "Other apps hold {x} — the model may not fit in VRAM"],
+  ["推薦", "推荐", "Picks"],
+  ["精選模型 · 一鍵下載", "精选模型 · 一键下载", "Curated models · one-click download"],
+  ["讀取推薦清單…", "读取推荐清单…", "Loading picks…"],
+  ["下載完成會自動套用，並依顯存自動配置上下文與 KV 快取。", "下载完成会自动套用，并依显存自动配置上下文与 KV 缓存。",
+   "Downloads are applied automatically, with context and KV cache sized to your VRAM."],
+  ["下載引擎：herta-rs（多連線續傳）", "下载引擎：herta-rs（多连接续传）", "Downloader: herta-rs (multi-connection, resumable)"],
+  ["共 {n} 檔", "共 {n} 个文件", "{n} files"],
+  ["權重 {a} GB · 佔盤 {b} GB", "权重 {a} GB · 占盘 {b} GB", "{a} GB weights · {b} GB on disk"],
+  ["續傳 {p}%", "续传 {p}%", "Resume {p}%"],
+  ["開始下載 {n}", "开始下载 {n}", "Downloading {n}"],
+  ["下載", "下载", "Download"],
+  ["使用", "使用", "Use"],
+  ["切換模型中…", "切换模型中…", "Switching model…"],
+].forEach(([hant, hans, en]) => {
+  I18N["zh-Hant"][hant] = hant;
+  I18N["zh-Hans"][hant] = hans;
+  I18N.en[hant] = en;
+});
 
 function t(key, vars) {
   const dict = I18N[LANG] || {};
@@ -1368,7 +1676,6 @@ const _zhText = new WeakMap();
 
 function applyLang(lang) {
   if (lang) LANG = LANGS.includes(lang) ? lang : "zh-Hant";
-  else if (LANG === "zh-Hant") return;   // source language needs no rewriting
   document.documentElement.lang = LANG === "en" ? "en" : (LANG === "zh-Hans" ? "zh-CN" : "zh-Hant");
   const dict = I18N[LANG] || {};
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
@@ -1378,11 +1685,25 @@ function applyLang(lang) {
     if (!parent || parent.closest("script,style")) continue;
     const raw = node.nodeValue;
     if (!raw || !raw.trim()) continue;
-    if (!_zhText.has(node)) _zhText.set(node, raw);
-    const src = _zhText.get(node);
+    let saved = _zhText.get(node);
+    if (!saved || saved.rendered !== raw) {
+      // Dynamic text was re-rendered: refresh its source instead of restoring stale status.
+      let source = raw;
+      const key = raw.trim();
+      if (saved) {
+        for (const language of LANGS) {
+          const entry = Object.entries(I18N[language]).find(([k, value]) => value === key && k !== value);
+          if (entry) { source = raw.replace(key, entry[0]); break; }
+        }
+      }
+      saved = { source, rendered: raw };
+      _zhText.set(node, saved);
+    }
+    const src = saved.source;
     const key = src.trim();
     const tr = dict[key];
     node.nodeValue = tr === undefined ? src : src.replace(key, tr);
+    saved.rendered = node.nodeValue;
   }
   document.querySelectorAll("[placeholder]").forEach(el => {
     if (!el.dataset.zhPh) el.dataset.zhPh = el.placeholder;
@@ -1436,6 +1757,7 @@ function fillSettings(s) {
   $("setPort").value = srv.port ?? 11433;
   updateCtxWarn();
   $("setKey").value = srv.apiKey || "";
+  $("setAutoPlan").checked = srv.autoPlan !== false;
   $("setAnth").checked = srv.anthropicEnabled !== false;
   $("setAnthPort").value = srv.anthropicPort ?? 11435;
 }
@@ -1459,6 +1781,7 @@ function collectSettings() {
       bind: $("setBind").value,
       port: parseInt($("setPort").value, 10),
       apiKey: $("setKey").value.trim(),
+      autoPlan: $("setAutoPlan").checked,
       anthropicEnabled: $("setAnth").checked,
       anthropicPort: parseInt($("setAnthPort").value, 10),
     },
@@ -1471,20 +1794,23 @@ async function openSettings() {
     SET.current = d.settings;
     SET.defaults = d.defaults;
     fillSettings(d.settings || {});
-    $("setPath").textContent = "settings.json · " + (d.settings ? "已載入" : "使用預設值");
+    $("setPath").textContent = "settings.json · " + t(d.settings ? "已載入" : "使用預設值");
   } catch (e) {
     $("setPath").textContent = "讀取設定失敗：" + e.message;
   }
-  $("setModal").classList.add("show");
+  showModal("setModal", "setLang");
 }
 
 async function saveSettings(restart) {
   const patch = collectSettings();
+  const buttons = [$("setSave"), $("setSaveRestart")];
+  if (buttons.some(button => button.disabled)) return;
+  buttons.forEach(button => button.disabled = true);
   try {
     const r = await (await fetch("/api/settings", {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch),
     })).json();
-    if (!r.ok) { toast(r.message, true); return; }
+    if (!r.ok) { toast(resultMessage(r), true); return; }
     SET.current = r.settings;
     applyUi(r.settings);
     $("setHint").textContent = restart
@@ -1493,20 +1819,24 @@ async function saveSettings(restart) {
     toast("設定已儲存");
     if (restart) {
       $("setHint").textContent = "已儲存，正在重新載入模型…";
-      await fetch("/api/stop", { method: "POST" });
-      await new Promise(r2 => setTimeout(r2, 800));
-      await fetch("/api/start", { method: "POST" });
+      const stopped = await (await fetch("/api/stop", { method: "POST" })).json();
+      if (!stopped.ok) throw new Error(resultMessage(stopped));
+      const started = await (await fetch("/api/start", { method: "POST" })).json();
+      if (!started.ok) throw new Error(resultMessage(started));
       poll();
     }
   } catch (e) {
-    toast("儲存失敗：" + e.message, true);
+    $("setHint").textContent = t(restart ? "模型重新載入失敗" : "儲存失敗");
+    toast(t(restart ? "模型重新載入失敗" : "儲存失敗") + ": " + e.message, true);
+  } finally {
+    buttons.forEach(button => button.disabled = false);
   }
 }
 
 $("btnSettings").onclick = openSettings;
-$("setClose").onclick = () => $("setModal").classList.remove("show");
-$("setClose2").onclick = () => $("setModal").classList.remove("show");
-$("setModal").addEventListener("click", e => { if (e.target.id === "setModal") $("setModal").classList.remove("show"); });
+$("setClose").onclick = () => closeModal("setModal");
+$("setClose2").onclick = () => closeModal("setModal");
+$("setModal").addEventListener("click", e => { if (e.target.id === "setModal") closeModal("setModal"); });
 $("setScale").addEventListener("input", e => {
   const v = parseInt(e.target.value, 10);
   $("setScaleVal").textContent = v + "%";
@@ -1514,6 +1844,7 @@ $("setScale").addEventListener("input", e => {
 });
 $("setLang").addEventListener("change", e => {
   applyLang(e.target.value);
+  $("setPath").textContent = "settings.json · " + t(SET.current ? "已載入" : "使用預設值");
   poll();
   if ($("libModal").classList.contains("show")) { refreshLocal(); if (LIB.hf.length) renderHf(); }
   if ($("setModal").classList.contains("show")) { loadRecommend(); }
@@ -1534,6 +1865,15 @@ document.querySelectorAll(".themeCard").forEach(card => {
 function updateCtxWarn() {
   const sel = $("setCtx").value;
   const value = sel === "0" ? parseInt($("setCtxCustom").value || "0", 10) : parseInt(sel, 10);
+  // The paging story is OS specific: WDDM on Windows, the swapper on Linux, and
+  // on Apple Silicon the GPU simply shares system memory with everything else.
+  const plat = state.platform || "windows";
+  const key = plat === "macos"
+    ? "⚠ 長上下文會佔用大量統一記憶體；與 macOS 其他程式搶記憶體時速度可能掉到十分之一。"
+    : plat === "linux"
+      ? "⚠ 長上下文會佔用大量顯存；超過顯存上限時驅動會退回系統記憶體，速度可能掉到十分之一。"
+      : "⚠ 長上下文會佔用大量顯存；總用量超過約 15.3 GB 時 Windows 會換頁，速度可能掉到十分之一。";
+  $("ctxWarn").textContent = t(key);
   $("ctxWarn").style.display = value > 131072 ? "" : "none";
   const train = state.ctxTrain || 0;
   if (train && value > train) {
@@ -1574,8 +1914,10 @@ function dispatchHash() {
   libOpen();
   const q = params.get("q");
   const p = params.get("p");
+  const tab = params.get("t");
   if (q) { libTab("search"); $("hfQ").value = q; hfSearch(); return; }
-  if (p) { libTab("search"); selectChip("fProvider", p); }
+  if (p) { libTab("search"); selectChip("fProvider", p); return; }
+  if (tab && ["local", "rec", "search", "dl"].includes(tab)) libTab(tab);
 }
 
 (async () => {
@@ -1595,6 +1937,7 @@ function dispatchHash() {
 
 poll();
 let pollTimer = setInterval(poll, 1500);
+reactorInit();
 document.addEventListener("visibilitychange", () => {
   // skip console polling while the window is hidden
   if (document.hidden) { clearInterval(pollTimer); pollTimer = null; }

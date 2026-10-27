@@ -1,0 +1,16 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Herta Space Station
+Name[zh_TW]=黑塔空間站
+Name[zh_CN]=黑塔空间站
+Comment=Local llama.cpp model switchboard with an OpenAI-compatible API
+Comment[zh_TW]=本機 llama.cpp 模型終端，提供 OpenAI 相容 API
+Comment[zh_CN]=本机 llama.cpp 模型终端，提供 OpenAI 兼容 API
+Exec=/usr/local/bin/HertaStation
+Icon=herta-station
+Terminal=false
+Categories=Development;Utility;
+Keywords=llama;llm;ai;local;openai;
+StartupWMClass=HertaStation
+StartupNotify=true

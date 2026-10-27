@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """Herta Space Station - llama.cpp switchboard.
 
 Small stdlib-only control plane for a local llama-server instance:
@@ -13,24 +13,48 @@ Small stdlib-only control plane for a local llama-server instance:
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import threading
 import time
 import urllib.parse
 import urllib.request
+import zipfile
 import models
 import settings as appsettings
 import anthropic_proxy
+import hostos
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 # ui.html lives next to the script, or inside the PyInstaller bundle
 RES_DIR = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+_UI_BYTES = None
+
+
+def ui_html():
+    """Read ui.html, including from a zipapp/pyz where it is inside the archive."""
+    global _UI_BYTES
+    if _UI_BYTES is not None:
+        return _UI_BYTES
+    for path in (os.path.join(RES_DIR, "ui.html"),):
+        try:
+            with open(path, "rb") as fh:
+                _UI_BYTES = fh.read()
+                return _UI_BYTES
+        except OSError:
+            pass
+    archive = sys.argv[0] if zipfile.is_zipfile(sys.argv[0]) else None
+    if archive:
+        with zipfile.ZipFile(archive) as zf:
+            _UI_BYTES = zf.read("ui.html")
+            return _UI_BYTES
+    raise FileNotFoundError("ui.html missing")
 # logs / pid must live beside the executable, never inside the temp bundle
-DATA_DIR = os.path.dirname(sys.executable) if getattr(sys, "frozen", False) else RES_DIR
-EXE = os.environ.get("HERTA_LLAMA_EXE", r"D:\llama.cpp\b11756\llama-server.exe")
-MODEL = os.environ.get("HERTA_MODEL", r"D:\ollama-gguf\qwen3.8-27b\Qwen3.8-27B-UD-Q3_K_XL.gguf")
-MMPROJ = os.environ.get("HERTA_MMPROJ_PATH", r"D:\ollama-gguf\qwen3.8-27b\mmproj-F16.gguf")
+DATA_DIR = appsettings.DATA_DIR
+EXE = hostos.default_llama_exe()
+MODEL = hostos.default_model_path()
+MMPROJ = hostos.default_mmproj_path()
 ALIAS = os.environ.get("HERTA_ALIAS", "")
 HOST = "127.0.0.1"                               # control plane / probes (never exposed)
 
@@ -53,24 +77,24 @@ UI_PORT = int(os.environ.get("HERTA_UI_PORT", "8899"))   # override for tests
 LOG_PATH = os.path.join(DATA_DIR, "llama-server.log")
 PID_PATH = os.path.join(DATA_DIR, "llama-server.pid")
 
-NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 _lock = threading.Lock()
 _proc = None
 _started_at = None
 _last_error = ""
+_last_error_code = ""
 
 
 # --------------------------------------------------------------------------- #
 # helpers
 # --------------------------------------------------------------------------- #
+def _kill_tree(pid):
+    """Kill a process and its children (taskkill on Windows, SIGTERM/KILL on POSIX)."""
+    return hostos.kill_tree(pid)
+
+
 def _run(args, timeout=15):
-    try:
-        out = subprocess.run(
-            args, capture_output=True, timeout=timeout, creationflags=NO_WINDOW
-        )
-        return out.stdout.decode("utf-8", "replace") + out.stderr.decode("utf-8", "replace")
-    except Exception as exc:  # pragma: no cover
-        return f"{exc}"
+    """Run a console tool without ever blocking on a lingering grandchild."""
+    return hostos.run(args, timeout=timeout)
 
 
 _vram_cache = {"at": 0.0, "value": None}
@@ -97,18 +121,8 @@ def _lan_ip_cached(ttl=60.0):
 
 
 def _vram():
-    txt = _run([
-        "nvidia-smi",
-        "--query-gpu=memory.used,memory.total,name",
-        "--format=csv,noheader,nounits",
-    ], timeout=8).strip().splitlines()
-    if not txt:
-        return {"used": None, "total": None, "gpu": "n/a"}
-    parts = [p.strip() for p in txt[0].split(",")]
-    try:
-        return {"used": int(parts[0]), "total": int(parts[1]), "gpu": parts[2]}
-    except (ValueError, IndexError):
-        return {"used": None, "total": None, "gpu": "n/a"}
+    """Used/total VRAM in MiB. nvidia-smi, AMD sysfs, or Apple unified memory."""
+    return hostos.vram_usage(runner=_run)
 
 
 def _lan_ip():
@@ -137,23 +151,26 @@ def _health():
         return False
 
 
-def _port_pid(port=PORT):
-    """Find the PID listening on a local TCP port (Windows netstat)."""
-    out = _run(["netstat", "-ano", "-p", "TCP"], timeout=10)
-    for line in out.splitlines():
-        if f":{port} " in line and "LISTENING" in line.upper():
-            tail = line.split()
-            if tail and tail[-1].isdigit():
-                return int(tail[-1])
-    return None
+def _port_pid(port=None):
+    """Find the PID listening on a local TCP port (netstat / ss / lsof / /proc)."""
+    port = PORT if port is None else port
+    return hostos.listener_pid(port, runner=_run)
 
 
 def _tail(n=60):
+    """Bound each dashboard read to 64 KiB even when a model writes a huge log."""
+    if n <= 0:
+        return []
     try:
-        with open(LOG_PATH, "r", encoding="utf-8", errors="replace") as fh:
-            lines = fh.readlines()
-        return [ln.rstrip("\r\n") for ln in lines[-n:]]
-    except FileNotFoundError:
+        with open(LOG_PATH, "rb") as fh:
+            fh.seek(0, os.SEEK_END)
+            start = max(0, fh.tell() - 65536)
+            fh.seek(start)
+            raw = fh.read(65536)
+        if start and b"\n" in raw:
+            raw = raw.split(b"\n", 1)[1]
+        return raw.decode("utf-8", "replace").splitlines()[-n:]
+    except OSError:
         return []
 
 
@@ -167,28 +184,70 @@ def _tps(lines):
 
 
 def _pid():
+    """PID of the running llama-server.
+
+    The child handle wins. Otherwise trust the PID file only when it still owns
+    the listening port *and* really is llama-server; if the file is missing, adopt
+    the listener after the same executable check (a console restart must not make
+    the app blind to a model it started earlier).
+    """
     if _proc is not None and _proc.poll() is None:
         return _proc.pid
+    listening = _port_pid()
+    if listening is None:
+        return None
     try:
         with open(PID_PATH, "r", encoding="utf-8") as fh:
-            return int(fh.read().strip())
+            saved = int(fh.read().strip())
     except Exception:
-        return _port_pid()
+        saved = None
+    if saved is not None and saved == listening and _matches_exe(saved):
+        return saved
+    return listening if _matches_exe(listening) else None
+
+
+def _process_image(pid):
+    """Full image path of a live process, or None (Win32 / /proc / ps)."""
+    return hostos.process_image(pid)
+
+
+def _matches_exe(pid, expected=None):
+    """True when the process image really is llama-server (or ``expected``)."""
+    image = _process_image(pid)
+    if not image:
+        return False
+    want = expected or EXE
+    return (os.path.normcase(os.path.realpath(image))
+            == os.path.normcase(os.path.realpath(want)))
 
 
 def _alive():
     """Cheap liveness check: the child handle first, then the listening port."""
     if _proc is not None and _proc.poll() is None:
         return True
-    return _port_pid() is not None
+    return _pid() is not None
+
+
+def _failure(code, message):
+    global _last_error, _last_error_code
+    _last_error, _last_error_code = message, code
+    return {"ok": False, "message": message, "error_code": code}
 
 
 # --------------------------------------------------------------------------- #
 # actions
 # --------------------------------------------------------------------------- #
 def current_model():
-    """Active GGUF: whatever the library selection points at, else the env default."""
+    """Active GGUF: library selection, env default, else the first local file."""
     path = models.active_model_path() or MODEL
+    if path and os.path.isfile(path):
+        return path
+    try:                                   # nothing selected yet: pick a local weight
+        for item in models.scan_local(0):
+            if not item.get("mmproj"):
+                return item["path"]
+    except Exception:
+        pass
     return path
 
 
@@ -200,19 +259,24 @@ def current_alias():
 
 
 def start_model():
-    global _proc, _started_at, _last_error
+    global _proc, _started_at, _last_error, _last_error_code
     with _lock:
-        if _health():
+        alive = _alive()
+        if alive and _health():
             return {"ok": True, "message": "模型已在運行中"}
-        if _alive():
+        if alive:
             _started_at = _started_at or time.time()
             return {"ok": True, "message": "載入程序仍在啟動，請稍候"}
 
-        if not os.path.exists(EXE):
-            return {"ok": False, "message": f"找不到 llama-server.exe: {EXE}"}
+        _apply_server_settings(CONF["server"])
+        if _port_pid() is not None:
+            return _failure("port_in_use", f"連接埠 {PORT} 已被其他程序使用")
+        if not os.path.isfile(EXE):
+            return _failure("missing_executable",
+                            f"找不到 llama-server：{EXE}（可用 HERTA_LLAMA_EXE 指定）")
         model_path = current_model()
-        if not os.path.exists(model_path):
-            return {"ok": False, "message": f"找不到模型權重: {model_path}"}
+        if not os.path.isfile(model_path):
+            return _failure("missing_model", f"找不到模型權重: {model_path}")
 
         args = [
             EXE, "-m", model_path,
@@ -237,36 +301,41 @@ def start_model():
         if CTV:
             args += ["-ctv", CTV]
         try:
-            log = open(LOG_PATH, "w", encoding="utf-8", errors="replace")
-            log.write("$ " + " ".join(f'"{a}"' if " " in a else a for a in args) + "\n")
-            log.flush()
-            _proc = subprocess.Popen(
-                args,
-                cwd=os.path.dirname(EXE),
-                stdout=log,
-                stderr=subprocess.STDOUT,
-                creationflags=NO_WINDOW,
-            )
+            os.makedirs(DATA_DIR, exist_ok=True)
+            display_args = list(args)
+            if "--api-key" in display_args:
+                display_args[display_args.index("--api-key") + 1] = "***"
+            with open(LOG_PATH, "w", encoding="utf-8", errors="replace") as log:
+                log.write("$ " + hostos.cmdline(display_args) + "\n")
+                log.flush()
+                _proc = subprocess.Popen(
+                    args, cwd=os.path.dirname(EXE) or None, stdout=log,
+                    stderr=subprocess.STDOUT, **hostos.spawn_kwargs(),
+                )
             _started_at = time.time()
             with open(PID_PATH, "w", encoding="utf-8") as fh:
                 fh.write(str(_proc.pid))
             _last_error = ""
+            _last_error_code = ""
+            start_anthropic_proxy(restart=True)
             return {"ok": True, "message": f"已啟動 llama-server (PID {_proc.pid})"}
         except Exception as exc:
-            _last_error = str(exc)
-            return {"ok": False, "message": f"啟動失敗: {exc}"}
+            return _failure("launch_failed", f"啟動失敗: {exc}")
 
 
 def stop_model():
     global _proc, _started_at
     with _lock:
         killed = []
-        if _proc is not None and _proc.poll() is None:
-            _run(["taskkill", "/PID", str(_proc.pid), "/T", "/F"])
-            killed.append(_proc.pid)
-        pid = _port_pid()
-        if pid and pid not in killed:
-            _run(["taskkill", "/PID", str(pid), "/T", "/F"])
+        pid = _pid()
+        if pid:
+            try:
+                if not _kill_tree(pid):
+                    return _failure("stop_failed", "無法停止模型程序")
+                if _proc is not None:
+                    _proc.wait(timeout=5)
+            except (OSError, subprocess.SubprocessError) as exc:
+                return _failure("stop_failed", str(exc))
             killed.append(pid)
         try:
             os.remove(PID_PATH)
@@ -274,28 +343,64 @@ def stop_model():
             pass
         _proc = None
         _started_at = None
-        time.sleep(0.6)
+        _apply_server_settings(CONF["server"])
+        start_anthropic_proxy(restart=True)
         return {"ok": True, "message": f"已停止 {len(killed)} 個程序，顯存已釋放" if killed else "目前沒有運行中的實例"}
 
 
+def _llama_pids():
+    """Every live llama-server PID (tasklist / pgrep)."""
+    return hostos.pids_by_name("llama-server", runner=_run)
+
+
+def _sweep_llama():
+    """Kill llama-server processes that came from our own build (orphans included)."""
+    own_dir = os.path.normcase(os.path.dirname(os.path.realpath(EXE)))
+    killed = []
+    for pid in _llama_pids():
+        image = _process_image(pid) or ""
+        if image and os.path.normcase(os.path.dirname(os.path.realpath(image))) == own_dir \
+                and _kill_tree(pid):
+            killed.append(pid)
+    return killed
+
+
 def purge_all():
-    names = []
-    out = _run(["ollama", "ps"], timeout=20)
-    for line in out.splitlines()[1:]:
-        token = line.split()
-        if token and token[0] not in ("NAME",):
-            names.append(token[0])
+    """Free VRAM: stop our model, unload Ollama, sweep orphans, report the delta."""
+    gpu = _vram_cached(0) or {}
+    before = gpu.get("used", 0) / 1024.0
     stopped = []
-    for name in names:
-        _run(["ollama", "stop", name], timeout=40)
-        stopped.append(name)
+    # Ollama is optional: skip it entirely when the CLI is not installed, and keep
+    # a tight budget so a busy/hung daemon can never stall the request.
+    if shutil.which("ollama"):
+        names = []
+        out = _run(["ollama", "ps"], timeout=8)
+        for line in out.splitlines()[1:]:
+            token = line.split()
+            if token and token[0] not in ("NAME",):
+                names.append(token[0])
+        for name in names[:4]:
+            _run(["ollama", "stop", name], timeout=12)
+            stopped.append(name)
     res = stop_model()
-    return {"ok": True, "message": f"已卸載 Ollama: {', '.join(stopped) if stopped else '無'}；{res['message']}"}
+    swept = _sweep_llama()
+    time.sleep(1.2)
+    after = (_vram_cached(0) or {}).get("used", 0) / 1024.0
+    freed = max(0.0, before - after)
+    parts = [f"已釋放 {freed:.1f} GB 顯存（{before:.1f} → {after:.1f} GB）"]
+    if stopped:
+        parts.append("卸載 Ollama: " + ", ".join(stopped))
+    if swept:
+        parts.append(f"清理殘留 llama-server ×{len(swept)}")
+    if res.get("ok") and res.get("message") and "未在執行" not in res["message"]:
+        parts.append(res["message"])
+    return {"ok": True, "message": " · ".join(parts), "freed_gb": round(freed, 2),
+            "vram": {"used": round(after * 1024), "total": gpu.get("total", 0)}}
 
 
 def selftest():
     body = json.dumps({
-        "model": ALIAS,
+        "model": current_alias(),
         "messages": [{"role": "user", "content": "回覆兩個字：在線"}],
         "max_tokens": 32,
         "temperature": 0.2,
@@ -314,6 +419,126 @@ def selftest():
         return {"ok": True, "message": f"{time.time() - t0:.1f}s · {reply[:60]}"}
     except Exception as exc:
         return {"ok": False, "message": f"連線測試失敗: {exc}"}
+
+
+# --------------------------------------------------------------------------- #
+# automatic context / KV planning
+# --------------------------------------------------------------------------- #
+def plan_for_model(path):
+    """Largest context this machine can give ``path``, plus a KV type to match."""
+    return models.context_plan(path, models.gpu_total_gb(), models.read_gguf_ctx(path))
+
+
+def apply_plan(plan):
+    """Persist a context/KV plan; live globals refresh on the next start."""
+    global CONF
+    CONF = appsettings.save({"server": {"ctx": plan["ctx"], "ctk": plan["ctk"], "ctv": plan["ctv"]}})
+    if not (_alive() or _health()):
+        _apply_server_settings(CONF["server"])
+    return {
+        "ctx": CONF["server"]["ctx"], "ctk": CONF["server"]["ctk"], "ctv": CONF["server"]["ctv"],
+        "ctx_train": plan.get("ctx_train", 0), "weights_gb": plan.get("weights_gb", 0),
+        "vram_limit_gb": plan.get("vram_limit_gb", 0),
+    }
+
+
+KV_ORDER = ["f16", "q8_0", "q5_1", "q4_0"]
+_fitting = {"active": False, "applied": 0}
+
+
+def _wait_ready(timeout=150):
+    """Block until the freshly spawned server answers /health (or the timeout)."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if _health():
+            return True
+        if _proc is not None and _proc.poll() is not None:
+            return False
+        time.sleep(1.0)
+    return False
+
+
+def _probe_tps(timeout=90):
+    """Generate a few tokens and report tok/s — paging shows up here, not in VRAM."""
+    body = json.dumps({
+        "model": current_alias(),
+        "messages": [{"role": "user", "content": "hi"}],
+        "max_tokens": 16,
+        "temperature": 0,
+        "chat_template_kwargs": {"enable_thinking": False},
+    }).encode("utf-8")
+    req = urllib.request.Request(
+        f"http://{HOST}:{PORT}/v1/chat/completions", data=body,
+        headers={"Content-Type": "application/json", **_auth_headers()},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        timings = data.get("timings") or {}
+        return float(timings.get("predicted_per_second") or 0.0)
+    except Exception:
+        return 0.0
+
+
+def fit_vram(max_tries=4, wait=150):
+    """Bring the loaded model back under the paging cliff.
+
+    Trade KV cache quality first, then context length. Memory alone cannot decide
+    this: 15.4 GB is healthy for one model and crawling for another, so a short
+    generation probe is the real signal and VRAM only guards gross overshoot.
+    """
+    if not _wait_ready(wait):
+        return 0
+    time.sleep(1.5)                     # let the driver settle before reading VRAM
+    applied = 0
+    for _ in range(max_tries):
+        gpu = _vram_cached(0) or {}
+        used = gpu.get("used", 0) / 1024.0
+        total = gpu.get("total", 0) / 1024.0
+        if not total:
+            return applied
+        limit = models.vram_limit(total)
+        tps = _probe_tps()
+        paging = tps > 0 and tps < 12.0
+        if used <= limit + 0.35 and not paging:
+            return applied
+
+        lower = [kv for kv in KV_ORDER[KV_ORDER.index(CTK) + 1:] if kv in models.KV_BYTES] \
+            if CTK in KV_ORDER else []
+        if lower:
+            plan = {"ctx": CTX, "ctk": lower[0], "ctv": lower[0]}
+        else:
+            new_ctx = max(2048, int(CTX * 0.6) // 2048 * 2048)
+            if new_ctx >= CTX:
+                return applied
+            plan = {"ctx": new_ctx, "ctk": CTK, "ctv": CTV}
+        apply_plan(plan)
+        stop_model()
+        time.sleep(0.8)
+        start_model()
+        if not _wait_ready(wait):
+            return applied
+        time.sleep(1.5)
+        applied = CONF["server"]["ctx"]
+    return applied
+
+
+def fit_async():
+    """Run the VRAM fit in the background so the API answer stays instant."""
+    if _fitting["active"]:
+        return False
+
+    def run():
+        _fitting["active"] = True
+        try:
+            _fitting["applied"] = fit_vram()
+        except Exception:
+            _fitting["applied"] = 0
+        finally:
+            _fitting["active"] = False
+
+    threading.Thread(target=run, daemon=True).start()
+    return True
 
 
 # --------------------------------------------------------------------------- #
@@ -353,10 +578,22 @@ def start_anthropic_proxy(restart=False):
 # --------------------------------------------------------------------------- #
 def apply_settings(patch):
     """Persist UI/server preferences and make them the live values."""
+    global CONF
+    with _lock:
+        running = _alive() or _health()
+        before = CONF
+        updated = appsettings.save(patch)
+        CONF = updated
+        # Keep probes, stop and the shim pointed at the *running* model until reload.
+        if not running:
+            _apply_server_settings(CONF["server"])
+        if (before["server"] != CONF["server"]):
+            start_anthropic_proxy(restart=True)
+        return {"ok": True, "settings": CONF, "restart_required": running and _restart_required()}
+
+
+def _apply_server_settings(srv):
     global CONF, CTX, CTK, CTV, PARALLEL, BIND, PORT, API_KEY, NGL
-    before = CONF["server"]
-    CONF = appsettings.save(patch or {})
-    srv = CONF["server"]
     CTX = srv["ctx"]
     CTK = srv["ctk"]
     CTV = srv["ctv"]
@@ -365,20 +602,32 @@ def apply_settings(patch):
     PORT = srv["port"]
     API_KEY = srv["apiKey"]
     NGL = srv["ngl"]
-    if (before.get("anthropicEnabled"), before.get("anthropicPort"), before.get("apiKey")) != \
-       (srv["anthropicEnabled"], srv["anthropicPort"], srv["apiKey"]):
-        start_anthropic_proxy(restart=True)
-    running = _health() or _alive()
-    return {"ok": True, "settings": CONF, "restart_required": running}
+
+
+def _restart_required():
+    return any(CONF["server"][key] != value for key, value in (
+        ("ctx", CTX), ("ctk", CTK), ("ctv", CTV), ("parallel", PARALLEL),
+        ("bind", BIND), ("port", PORT), ("apiKey", API_KEY), ("ngl", NGL)))
 
 
 # --------------------------------------------------------------------------- #
 # status
 # --------------------------------------------------------------------------- #
 def status():
+    global _last_error, _last_error_code
     lines = _tail(60)
-    running = _health()
-    alive = _alive()
+    pid = _pid()
+    alive = pid is not None
+    running = alive and _health()
+    if _proc is not None and _proc.poll() is not None and _started_at is not None and not _last_error:
+        detail = "\n".join(lines)
+        if re.search(r"out of memory|cudaMalloc.*failed|failed to allocate|unable to allocate", detail, re.I):
+            _last_error_code = "out_of_memory"
+        elif re.search(r"address already in use|failed to bind|bind.*failed", detail, re.I):
+            _last_error_code = "port_in_use"
+        else:
+            _last_error_code = "model_exited"
+        _last_error = f"llama-server exited ({_proc.returncode})"
     if running:
         phase = "running"
     elif alive:
@@ -414,19 +663,27 @@ def status():
         "ctk": CTK,
         "ctv": CTV,
         "parallel": PARALLEL,
-        "pid": _pid() if (running or alive) else None,
+        "pid": pid,
         "uptime": uptime,
         "tps": _tps(lines),
         "vram": gpu,
         "log": lines[-40:],
         "error": _last_error,
+        "error_code": _last_error_code,
+        "restart_required": alive and _restart_required(),
         "ctx_train": models.read_gguf_ctx(current_model() or ""),
+        "auto_plan": CONF["server"].get("autoPlan", True),
+        "fitting": _fitting["active"],
         "endpoint": f"http://{HOST}:{PORT}/v1",
         "endpoint_lan": f"http://{lan}:{PORT}/v1",
         "anthropic_url": (f"http://{lan}:{_anthropic['port']}" if _anthropic["port"] else ""),
         "anthropic_port": _anthropic["port"],
         "anthropic_enabled": CONF["server"].get("anthropicEnabled", True),
         "anthropic_error": _anthropic["error"],
+        "platform": ("windows" if hostos.IS_WIN else
+                     ("macos" if hostos.IS_MAC else ("linux" if hostos.IS_LINUX else sys.platform))),
+        "unified": bool(models.hardware().get("unified")),
+        "llama_exe": EXE,
     }
 
 
@@ -453,9 +710,8 @@ class Handler(BaseHTTPRequestHandler):
         params = urllib.parse.parse_qs(query)
         if path in ("/", "/index.html"):
             try:
-                with open(os.path.join(RES_DIR, "ui.html"), "rb") as fh:
-                    self._send(200, fh.read(), "text/html; charset=utf-8")
-            except FileNotFoundError:
+                self._send(200, ui_html(), "text/html; charset=utf-8")
+            except (OSError, KeyError, zipfile.BadZipFile):
                 self._send(500, b"ui.html missing", "text/plain; charset=utf-8")
         elif path == "/api/status":
             self._send(200, status())
@@ -481,6 +737,13 @@ class Handler(BaseHTTPRequestHandler):
                 self._send(200, {"ok": False, "message": str(exc), "items": []})
         elif path == "/api/download/status":
             self._send(200, models.download_state())
+        elif path == "/api/presets":
+            try:
+                self._send(200, {"ok": True, "items": models.preset_state(CTX),
+                                 "rust": models.RUST_BIN or "",
+                                 "models_dir": models.MODELS_DIR})
+            except Exception as exc:
+                self._send(200, {"ok": False, "message": str(exc), "items": []})
         elif path == "/api/recommend":
             self._send(200, models.recommend(CTX))
         elif path == "/api/settings":
@@ -502,13 +765,23 @@ class Handler(BaseHTTPRequestHandler):
                 return {"ok": False, "message": f"找不到檔案: {exc}"}
             except ValueError as exc:
                 return {"ok": False, "message": str(exc)}
+            plan = None
+            if CONF["server"].get("autoPlan", True):
+                plan = apply_plan(plan_for_model(target))
             was_running = _health() or _alive()
             if was_running:
                 stop_model()
                 time.sleep(1.0)
                 res = start_model()
-                return {"ok": res["ok"], "message": f"已切換模型並重啟：{res['message']}"}
-            return {"ok": True, "message": f"已選擇 {os.path.basename(target)}"}
+                if plan and res["ok"]:
+                    fit_async()          # measure after load, shrink in the background
+                note = ""
+                if plan:
+                    note = (f" · 自動配置 ctx={plan['ctx']}"
+                            f"（{models.fmt_ctx(plan['ctx'])}）KV={plan['ctk']}")
+                return {"ok": res["ok"], "message": f"已切換模型並重啟：{res['message']}{note}",
+                        "plan": plan}
+            return {"ok": True, "message": f"已選擇 {os.path.basename(target)}", "plan": plan}
 
         def _dl_start():
             repo = (params.get("repo") or [""])[0]
@@ -516,6 +789,19 @@ class Handler(BaseHTTPRequestHandler):
             if not repo or not name:
                 return {"ok": False, "message": "缺少 repo / file"}
             return models.start_download(repo, name)
+
+        def _preset_download():
+            preset_id = (params.get("id") or [""])[0]
+            if not preset_id:
+                n = int(self.headers.get("Content-Length") or 0)
+                if n > 0:
+                    try:
+                        preset_id = json.loads(self.rfile.read(n).decode("utf-8-sig")).get("id", "")
+                    except Exception:
+                        preset_id = ""
+            if not preset_id:
+                return {"ok": False, "message": "缺少 preset id", "error_code": "invalid_download"}
+            return models.start_preset_download(preset_id)
 
         def _settings_save():
             n = int(self.headers.get("Content-Length") or 0)
@@ -525,16 +811,28 @@ class Handler(BaseHTTPRequestHandler):
                     patch = json.loads(self.rfile.read(n).decode("utf-8-sig"))
                 except Exception as exc:
                     return {"ok": False, "message": f"設定格式錯誤: {exc}"}
-            return apply_settings(patch)
+            try:
+                return apply_settings(patch)
+            except ValueError as exc:
+                return {"ok": False, "message": str(exc), "error_code": "settings_invalid"}
+            except OSError as exc:
+                return {"ok": False, "message": str(exc), "error_code": "settings_write_failed"}
+
+        def _start():
+            res = start_model()
+            if res.get("ok") and CONF["server"].get("autoPlan", True):
+                fit_async()          # correct the VRAM footprint once weights are in
+            return res
 
         routes = {
-            "/api/start": start_model,
+            "/api/start": _start,
             "/api/stop": stop_model,
             "/api/purge": purge_all,
             "/api/selftest": selftest,
             "/api/select": _select,
             "/api/settings": _settings_save,
             "/api/hf/download": _dl_start,
+            "/api/preset/download": _preset_download,
             "/api/download/cancel": models.cancel_download,
             "/api/download/reset": models.reset_download,
         }

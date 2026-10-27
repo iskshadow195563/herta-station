@@ -1,4 +1,4 @@
-﻿# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """Persisted application settings for Herta Station.
 
 Two groups:
@@ -10,11 +10,18 @@ the settings panel is the visible source of truth for the user.
 """
 
 import json
+import math
 import os
-import sys
+import tempfile
+import threading
 
-DATA_DIR = os.path.dirname(sys.executable) if getattr(sys, "frozen", False) else os.path.dirname(os.path.abspath(__file__))
+import hostos
+
+# Per-user writable location: beside the exe on Windows (portable), XDG on Linux,
+# Application Support on macOS — a .app bundle itself may be read-only.
+DATA_DIR = os.path.abspath(os.environ.get("HERTA_DATA_DIR") or hostos.app_dir())
 SETTINGS_FILE = os.path.join(DATA_DIR, "settings.json")
+_lock = threading.RLock()
 
 DEFAULTS = {
     "ui": {
@@ -33,6 +40,7 @@ DEFAULTS = {
         "port": int(os.environ.get("HERTA_PORT", "11433")),
         "apiKey": os.environ.get("HERTA_API_KEY", ""),
         "ngl": int(os.environ.get("HERTA_NGL", "99")),
+        "autoPlan": True,
         "anthropicEnabled": True,
         "anthropicPort": int(os.environ.get("HERTA_ANTHROPIC_PORT", "11435")),
     },
@@ -47,36 +55,49 @@ HF_SORTS = {"downloads", "likes"}
 
 def _merge(base, patch):
     out = {k: (dict(v) if isinstance(v, dict) else v) for k, v in base.items()}
-    for key, value in (patch or {}).items():
+    for key, value in (patch if isinstance(patch, dict) else {}).items():
         if key in out and isinstance(out[key], dict) and isinstance(value, dict):
             out[key].update({k: v for k, v in value.items() if k in out[key]})
-        elif key in out:
-            out[key] = value
     return out
 
 
 def _clamp_int(value, low, high, fallback):
     try:
         n = int(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return fallback
     return max(low, min(high, n))
 
 
+def _bool(value, fallback):
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (str, int)):
+        value = str(value).strip().lower()
+        if value in ("true", "1", "yes", "on"):
+            return True
+        if value in ("false", "0", "no", "off"):
+            return False
+    return fallback
+
+
 def validate(data):
     """Coerce everything into a safe shape; bad input falls back to defaults."""
-    ui = data.get("ui") or {}
-    srv = data.get("server") or {}
+    data = data if isinstance(data, dict) else {}
+    ui = data.get("ui") if isinstance(data.get("ui"), dict) else {}
+    srv = data.get("server") if isinstance(data.get("server"), dict) else {}
 
     try:
         scale = float(ui.get("scale", DEFAULTS["ui"]["scale"]))
     except (TypeError, ValueError):
         scale = DEFAULTS["ui"]["scale"]
+    if not math.isfinite(scale):
+        scale = DEFAULTS["ui"]["scale"]
     ui = {"theme": str(ui.get("theme", "herta")) if str(ui.get("theme", "herta")) in THEMES else "herta",
           "lang": str(ui.get("lang", "zh-Hant")) if str(ui.get("lang", "zh-Hant")) in LANGS else "zh-Hant",
           "hfSort": str(ui.get("hfSort", "downloads")) if str(ui.get("hfSort", "downloads")) in HF_SORTS else "downloads",
           "scale": round(max(0.8, min(1.35, scale)), 2),
-          "animations": bool(ui.get("animations", True))}
+          "animations": _bool(ui.get("animations"), True)}
 
     ctk = str(srv.get("ctk", DEFAULTS["server"]["ctk"]))
     ctv = str(srv.get("ctv", DEFAULTS["server"]["ctv"]))
@@ -90,7 +111,8 @@ def validate(data):
         "port": _clamp_int(srv.get("port"), 1024, 65535, DEFAULTS["server"]["port"]),
         "apiKey": str(srv.get("apiKey", "") or "").strip(),
         "ngl": _clamp_int(srv.get("ngl"), 0, 999, DEFAULTS["server"]["ngl"]),
-        "anthropicEnabled": bool(srv.get("anthropicEnabled", True)),
+        "autoPlan": _bool(srv.get("autoPlan"), True),
+        "anthropicEnabled": _bool(srv.get("anthropicEnabled"), True),
         "anthropicPort": _clamp_int(srv.get("anthropicPort"), 1024, 65535,
                                     DEFAULTS["server"]["anthropicPort"]),
     }
@@ -106,11 +128,27 @@ def load():
     return validate(_merge(DEFAULTS, stored))
 
 
-def save(patch):
-    data = validate(_merge(load(), patch))
+def atomic_json(path, data):
+    """Replace only after the complete JSON is flushed; propagate write errors."""
+    directory = os.path.dirname(os.path.abspath(path))
+    os.makedirs(directory, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(prefix="herta-", suffix=".tmp", dir=directory)
     try:
-        with open(SETTINGS_FILE, "w", encoding="utf-8") as fh:
-            json.dump(data, fh, ensure_ascii=False, indent=2)
-    except OSError:
-        pass
-    return data
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            json.dump(data, fh, ensure_ascii=False, indent=2, allow_nan=False)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(temporary, path)
+    finally:
+        if os.path.exists(temporary):
+            os.remove(temporary)
+
+
+def save(patch):
+    if not isinstance(patch, dict) or any(
+            key in patch and not isinstance(patch[key], dict) for key in ("ui", "server")):
+        raise ValueError("settings, ui and server must be JSON objects")
+    with _lock:
+        data = validate(_merge(load(), patch))
+        atomic_json(SETTINGS_FILE, data)
+        return data
