@@ -44,6 +44,19 @@ DEFAULTS = {
         "anthropicEnabled": True,
         "anthropicPort": int(os.environ.get("HERTA_ANTHROPIC_PORT", "11435")),
     },
+    "image": {
+        "comfyDir": os.environ.get("HERTA_COMFY_DIR", ""),
+        "pythonExe": os.environ.get("HERTA_COMFY_PY", ""),
+        "port": int(os.environ.get("HERTA_COMFY_PORT", "8188")),
+        "listen": os.environ.get("HERTA_COMFY_LISTEN", "127.0.0.1"),
+        "vramMode": os.environ.get("HERTA_COMFY_VRAM", "auto"),  # auto | high | normal | low
+        "autoOpen": True,
+        "browser": os.environ.get("HERTA_COMFY_BROWSER", ""),
+        "extraArgs": "",
+        "loadTimeout": 240,
+        "genTimeout": 240,
+        "selftestWorkflow": "",
+    },
 }
 
 KV_TYPES = {"f16", "q8_0", "q5_1", "q5_0", "q4_1", "q4_0"}
@@ -51,6 +64,8 @@ BINDS = {"0.0.0.0", "127.0.0.1"}
 THEMES = {"herta", "ollama", "xp"}
 LANGS = {"zh-Hant", "zh-Hans", "en"}
 HF_SORTS = {"downloads", "likes"}
+VRAM_MODES = {"auto", "high", "normal", "low", "verylow"}
+IMAGE_LISTENS = {"127.0.0.1", "0.0.0.0"}
 
 
 def _merge(base, patch):
@@ -116,7 +131,31 @@ def validate(data):
         "anthropicPort": _clamp_int(srv.get("anthropicPort"), 1024, 65535,
                                     DEFAULTS["server"]["anthropicPort"]),
     }
-    return {"ui": ui, "server": srv}
+    return {"ui": ui, "server": srv, "image": _validate_image(data.get("image"))}
+
+
+def _text(value, limit=240):
+    return str(value or "").strip()[:limit]
+
+
+def _validate_image(image):
+    image = image if isinstance(image, dict) else {}
+    defaults = DEFAULTS["image"]
+    listen = str(image.get("listen", defaults["listen"]) or defaults["listen"]).strip()
+    mode = str(image.get("vramMode", defaults["vramMode"]) or defaults["vramMode"]).strip().lower()
+    return {
+        "comfyDir": _text(image.get("comfyDir", defaults["comfyDir"]), 400),
+        "pythonExe": _text(image.get("pythonExe", defaults["pythonExe"]), 400),
+        "port": _clamp_int(image.get("port"), 1024, 65535, defaults["port"]),
+        "listen": listen if listen in IMAGE_LISTENS else defaults["listen"],
+        "vramMode": mode if mode in VRAM_MODES else defaults["vramMode"],
+        "autoOpen": _bool(image.get("autoOpen"), True),
+        "browser": _text(image.get("browser", defaults["browser"]), 400),
+        "extraArgs": _text(image.get("extraArgs", ""), 400),
+        "loadTimeout": _clamp_int(image.get("loadTimeout"), 30, 1800, defaults["loadTimeout"]),
+        "genTimeout": _clamp_int(image.get("genTimeout"), 30, 3600, defaults["genTimeout"]),
+        "selftestWorkflow": _text(image.get("selftestWorkflow", ""), 400),
+    }
 
 
 def load():
@@ -146,8 +185,8 @@ def atomic_json(path, data):
 
 def save(patch):
     if not isinstance(patch, dict) or any(
-            key in patch and not isinstance(patch[key], dict) for key in ("ui", "server")):
-        raise ValueError("settings, ui and server must be JSON objects")
+            key in patch and not isinstance(patch[key], dict) for key in ("ui", "server", "image")):
+        raise ValueError("settings, ui, server and image must be JSON objects")
     with _lock:
         data = validate(_merge(load(), patch))
         atomic_json(SETTINGS_FILE, data)

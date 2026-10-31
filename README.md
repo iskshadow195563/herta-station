@@ -127,10 +127,14 @@ DSH 一輪請求的 prompt 實測 **38085 tokens**（系統提示＋工具定義
 | `D:\ollama-gguf\qwen3.8-27b\` | 權重 13.15 GB + mmproj 0.93 GB |
 | `D:\llama.cpp\herta\hostos.py` | 平台層：程序／埠／GPU／路徑，Windows·Linux·macOS 共用 |
 | `D:\llama.cpp\herta\models.py` | 模型庫掃描、GGUF 表頭解析、HF 搜尋、顯存規劃 |
+| `D:\llama.cpp\herta\imagestation.py` | 生圖引擎（ComfyUI）：起停、顯存、權重分類、HF 文生圖搜尋、建議、下載 |
 | `D:\llama.cpp\herta\anthropic_proxy.py` | Anthropic `/v1/messages` 轉接（埠 11435） |
 | `D:\llama.cpp\herta\build.sh` / `start.sh` | Linux / macOS 打包與啟動 |
 | `D:\llama.cpp\herta\packaging\` | `.desktop`、`install-linux.sh`、`make-macos-dmg.sh`、SVG 圖示 |
 | `D:\llama.cpp\herta\tests\` | `smoke.py`（57 tests）+ `test_hostos.py`（30 tests） |
+| `D:\llama.cpp\herta\tests\test_imagestation.py` | 生圖引擎單元測試（58 tests：路徑偵測、顯存規劃、權重分類、HF 建議、HTTP 路由） |
+| `D:\llama.cpp\herta\tools\image_e2e.py` | 生圖端到端實測：起服務 → 出圖 → 驗 PNG → 停止並確認顯存釋放 |
+| `D:\llama.cpp\herta\tools\check_ui.py` | `ui.html` 靜態稽核：元素 id、i18n 對稱、路由對齊、JS 語法 |
 | `D:\llama.cpp\herta\docs\INSTALL-linux.md` / `INSTALL-macOS.md` | 兩平臺安裝說明 |
 
 ## 7. 重新打包
@@ -175,7 +179,70 @@ D:\llama.cpp\herta\build\.venv\Scripts\pyinstaller.exe --noconfirm --onefile --w
 每 250 ms 輸出 `{"done":…,"total":…}` 給 Python 解析；沒有 herta-rs 就自動退回純 Python 串流。
 實測 907 MB 檔案 12.5 秒（72 MB/s）。`herta-rs info <gguf>` 另外能印出 GGUF 版本／張量數。
 
+## 7.2 生圖模式（ComfyUI）
+
+左側欄多一個 `生圖模型` 分頁，和文字聊天共用同一個控制台（同一套啟動／停止／清空／自測／日誌／遙測／
+模型庫語彙，只是換一套後端）。文字端仍是指揮 llama.cpp，生圖端指揮 `main.py` 起 ComfyUI。
+
+| 需求 | 實作 |
+| --- | --- |
+| 左側切換 | 側欄 `TEXT / IMAGE` 兩顆按鈕，選擇記在 `localStorage.herta.view`，重開視窗待在同一個模式 |
+| 一鍵啟動 | `POST /api/image/start` → 起 ComfyUI、等到 `/system_stats` 回 `device: cuda`，把 `http://127.0.0.1:8188` 顯示在面板（可複製），預設瀏覽器自動打開（`image.autoOpen`，可指定 `msedge` / `chrome` / 完整路徑） |
+| 停止釋放 VRAM | `POST /api/image/stop` → 砍整棵程序樹 + 確認埠釋放，回報 `freed_gb`；面板的 VRAM 條會掉回來。另有 `清空殘留` 掃掉沒被追蹤到的 python 程序 |
+| HF 搜尋 + 建議 | 模型庫 → `Hugging Face 搜尋` 分頁，預設只搜 `text-to-image` 管線；推薦分頁依顯存排序，每列標注**該模型支援的提示詞語言**（例如漢語自然語言 / 英文 tag / 英文自然語言）與「這張卡跑不跑得動」 |
+| 其他一致 | 連線測試、引擎日誌、顯存遙測、模型庫（本機模型／推薦／HF 搜尋／下載）複用文字端的同一組元件與樣式 |
+
+生圖引擎設定在 `設定 → 生圖引擎`：安裝路徑、Python 解譯器、連接埠、監聽位址、顯存模式
+（`auto` / `high` / `normal` / `low` / `verylow` → 對應 `--highvram` / 不給旗標 / `--lowvram` /
+`--novram`；ComfyUI 早已沒有 `--normalvram`，`normal` 就是交給 DynamicVRAM 自己決定）、
+是否自動開瀏覽器、指定瀏覽器、額外啟動參數、載入／出圖逾時、自測工作流。全部寫進 `settings.json` 的
+`image` 群組，路徑一律留空即自動偵測（`D:\AI\ComfyUI`、`%USERPROFILE%\AI\ComfyUI`、`/opt/ComfyUI` 等）。
+
+下載器的角色標注（`role`）決定檔案落地位置：`unet` → `models/diffusion_models`、
+`text_encoder` → `models/text_encoders`、`vae` → `models/vae`、`checkpoint` → `models/checkpoints`，
+其他 → `models/loras`。下載單一任務、可續傳、可取消，狀態走 `GET /api/image/download/status`。
+
+新增端點（全部 additive，不動既有 `/api/status` 等契約）：
+
+```
+GET  /api/image/status          # phase / endpoint / vram / queue / log / models
+GET  /api/image/models          # 本機權重（unet / te / vae 分類）
+GET  /api/image/recommend       # 依 VRAM 的建議 + 提示詞語言（?lang=en 回英文說明）
+GET  /api/image/hf/search       # ?q= &sort= &limit=
+GET  /api/image/hf/files        # ?repo=
+GET  /api/image/download/status
+POST /api/image/start | /stop | /purge | /selftest | /open
+POST /api/image/hf/download     # {repo, file, role}
+POST /api/image/download/cancel | /reset
+```
+
+實測（RTX 5080 16 GB，`D:\AI\ComfyUI` + `D:\AI\venv`，Qwen-Image 2.1 Turbo Q6_K，
+背景另有遊戲佔用 2.6 GB 顯存）：
+
+| 動作 | 冷啟動（引擎沒在跑） | 熱狀態（權重已載入） |
+| --- | --- | --- |
+| 一鍵啟動 → `device: cuda` | 51.9 s | 11–18 s（含瀏覽器開啟） |
+| 自測出圖 512² / 4 步 | 42.8 s（含 11.7 GB 權重載入） | 4.0 s |
+| 停止 → 顯存釋放 | 3.3 s，釋放 **12.1 GB**（16303 → 1944 MiB） | — |
+
+`python tools/image_e2e.py` 會做完整鏈路驗證（`status` → `recommend` → `models` → `start` →
+`selftest` → `stop`，最後斷言 `phase=idle`），全部通過時輸出 `ALL GREEN`；
+`python tools/check_ui.py` 則是純靜態檢查（id 對應、i18n 對稱、路由對齊、`node --check`）。
+`tools/image_e2e.log` 是每次執行的逐字稿，不進版控。
+
+模型挑選的兩個坑（已在 `imagestation._auto_graph` 內處理，換機器時不要再踩）：
+
+1. **VAE 必須跟 DiT 同家族**。Qwen 2.1 的 latent 會被打包成 64 通道，拿共用
+   `ae.safetensors`（16 通道）解會炸 `expected input[1, 64, 32, 32] to have 16 channels`；
+   程式現在照家族挑（`qwen*_vae` vs `ae.safetensors`），找不到才退回任意 VAE。
+2. **量化文字編碼器不能用核心 `CLIPLoader`**。GGUF 走 `CLIPLoaderGGUF`，safetensors
+   走核心 `CLIPLoader`（且要帶 `device=default`），程式照副檔名分流；`type` 一律
+   `qwen_image`（Qwen 家族）或 `lumina2`（Z-Image 家族）。
+3. `TextEncodeQwenImage21` 的 `latent` 輸出是**打包過**的 latent，`VAEDecode` 讀不了，
+   所以自測圖只取它的 positive / negative，空 latent 交給 `EmptySD3LatentImage`。
+
 ## 8. 環境變數
+
 
 | 變數 | 預設 | 說明 |
 | --- | --- | --- |
@@ -193,6 +260,12 @@ D:\llama.cpp\herta\build\.venv\Scripts\pyinstaller.exe --noconfirm --onefile --w
 | `HERTA_MODELS_DIR` | 自動 | 模型庫目錄 |
 | `HERTA_DATA_DIR` | 自動 | 設定／日誌／PID 目錄 |
 | `HERTA_UI_PORT` | 8899 | 控制台埠（測試時可換一個跑第二份） |
+| `HERTA_COMFY_DIR` | 自動搜尋 | ComfyUI 安裝目錄（生圖模式） |
+| `HERTA_COMFY_PY` | 自動 | 跑 ComfyUI 的 Python（預設找 `<root>\venv\Scripts\python.exe`） |
+| `HERTA_COMFY_PORT` | 8188 | ComfyUI 埠 |
+| `HERTA_COMFY_LISTEN` | 127.0.0.1 | ComfyUI 綁定位址（`0.0.0.0` 才對外） |
+| `HERTA_COMFY_VRAM` | auto | `auto` / `high` / `normal` / `low` |
+| `HERTA_COMFY_BROWSER` | 系統預設 | 指定開啟 ComfyUI 的瀏覽器 |
 
 ## 9. Ubuntu / macOS
 
@@ -251,7 +324,7 @@ docker run --rm -v "$PWD/dist:/out" herta-build
 ## 10. 跨平臺測試
 
 ```bash
-./build/.venv/Scripts/python.exe tests/smoke.py   # Windows: 67 tests
+./build/.venv/Scripts/python.exe tests/smoke.py   # Windows: 125 tests
 .venv-unix/bin/python tests/smoke.py              # Linux / macOS
 ```
 

@@ -25,6 +25,7 @@ import models
 import settings as appsettings
 import anthropic_proxy
 import hostos
+import imagestation
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 # ui.html lives next to the script, or inside the PyInstaller bundle
@@ -749,6 +750,41 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/settings":
             self._send(200, {"ok": True, "settings": appsettings.load(),
                              "defaults": appsettings.DEFAULTS})
+        elif path == "/api/image/status":
+            try:
+                self._send(200, imagestation.status(CONF))
+            except Exception as exc:
+                self._send(200, {"phase": "idle", "error": str(exc),
+                                 "error_code": "image_status_failed",
+                                 "engine": imagestation.ENGINE})
+        elif path == "/api/image/models":
+            try:
+                self._send(200, imagestation.scan_models(CONF))
+            except Exception as exc:
+                self._send(200, {"ok": False, "message": str(exc), "items": []})
+        elif path == "/api/image/recommend":
+            try:
+                lang = (params.get("lang") or [""])[0] or (CONF.get("ui") or {}).get("lang")
+                self._send(200, imagestation.recommend(CONF, lang))
+            except Exception as exc:
+                self._send(200, {"ok": False, "message": str(exc), "picks": []})
+        elif path == "/api/image/hf/search":
+            try:
+                self._send(200, {"ok": True, "items": imagestation.hf_search(
+                    (params.get("q") or [""])[0],
+                    (params.get("sort") or ["downloads"])[0],
+                    (params.get("limit") or ["30"])[0])})
+            except Exception as exc:
+                self._send(200, {"ok": False, "message": str(exc), "items": []})
+        elif path == "/api/image/hf/files":
+            repo = (params.get("repo") or [""])[0]
+            try:
+                self._send(200, {"ok": True, "repo": repo,
+                                 "items": imagestation.hf_files(repo)})
+            except Exception as exc:
+                self._send(200, {"ok": False, "message": str(exc), "items": []})
+        elif path == "/api/image/download/status":
+            self._send(200, imagestation.download_state())
         else:
             self._send(404, {"ok": False, "message": "not found"})
 
@@ -824,6 +860,23 @@ class Handler(BaseHTTPRequestHandler):
                 fit_async()          # correct the VRAM footprint once weights are in
             return res
 
+        def _image_download():
+            body = {}
+            n = int(self.headers.get("Content-Length") or 0)
+            if n > 0:
+                try:
+                    body = json.loads(self.rfile.read(n).decode("utf-8-sig"))
+                except Exception:
+                    body = {}
+            body = body if isinstance(body, dict) else {}
+            repo = (params.get("repo") or [""])[0] or str(body.get("repo") or "")
+            name = (params.get("file") or [""])[0] or str(body.get("file") or "")
+            role = str(body.get("role") or (params.get("role") or [""])[0] or "")
+            if not repo or not name:
+                return {"ok": False, "message": "缺少 repo / file",
+                        "error_code": "invalid_download"}
+            return imagestation.start_download(CONF, repo, name, role)
+
         routes = {
             "/api/start": _start,
             "/api/stop": stop_model,
@@ -835,6 +888,14 @@ class Handler(BaseHTTPRequestHandler):
             "/api/preset/download": _preset_download,
             "/api/download/cancel": models.cancel_download,
             "/api/download/reset": models.reset_download,
+            "/api/image/start": lambda: imagestation.start(CONF),
+            "/api/image/stop": lambda: imagestation.stop(CONF),
+            "/api/image/purge": lambda: imagestation.purge(CONF),
+            "/api/image/open": lambda: imagestation.open_ui(CONF),
+            "/api/image/selftest": lambda: imagestation.selftest(CONF),
+            "/api/image/hf/download": _image_download,
+            "/api/image/download/cancel": imagestation.cancel_download,
+            "/api/image/download/reset": imagestation.reset_download,
         }
         fn = routes.get(path)
         if not fn:

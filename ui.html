@@ -515,12 +515,97 @@
     .core{grid-row:auto}
     .reactor{min-height:260px}
   }
+
+  /* ---------- shell: rail + two views ---------- */
+  body{display:grid;grid-template-columns:200px minmax(0,1fr);
+       grid-template-rows:auto minmax(0,1fr) auto;column-gap:16px}
+  header{grid-column:2;grid-row:1}
+  main{grid-column:2;grid-row:2}
+  footer{grid-column:2;grid-row:3}
+
+  /* ---------- left rail: text / image mode ---------- */
+  .hidden{display:none !important}
+  .rail{
+    grid-column:1;grid-row:1 / -1;z-index:2;display:flex;flex-direction:column;gap:8px;
+    padding:14px 12px;border:1px solid var(--line);background:var(--panel);position:relative;
+    clip-path:polygon(0 0,100% 0,100% calc(100% - 14px),calc(100% - 14px) 100%,0 100%);
+  }
+  .rail .rtitle{font-size:9px;letter-spacing:.3em;color:var(--dim)}
+  .railbtn{
+    display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:9px 11px;cursor:pointer;
+    font-family:inherit;text-align:left;color:#cfe6ff;background:rgba(111,242,255,.04);
+    border:1px solid rgba(111,242,255,.16);transition:background .16s,border-color .16s,box-shadow .16s;
+  }
+  .railbtn b{font-size:12.5px;letter-spacing:.14em;font-weight:600}
+  .railbtn small{font-size:9px;letter-spacing:.1em;color:var(--dim)}
+  .railbtn:hover{background:rgba(111,242,255,.13);border-color:rgba(111,242,255,.4)}
+  .railbtn.active{
+    background:linear-gradient(120deg,rgba(111,242,255,.2),rgba(167,123,255,.12));
+    border-color:rgba(111,242,255,.6);box-shadow:0 0 20px rgba(111,242,255,.16);
+  }
+  .railbtn.active b{color:#f4feff}
+  .railbtn.active small{color:#a9e6ff}
+  .railfoot{margin-top:auto;display:flex;flex-direction:column;gap:3px;
+            font-size:9px;letter-spacing:.14em;color:var(--dim);line-height:1.6}
+  .railfoot b{color:#cfe6ff;font-weight:500}
+
+  /* ---------- image view ---------- */
+  .imgview{
+    grid-column:2;grid-row:2;min-height:0;display:grid;gap:12px;
+    grid-template-columns:minmax(300px,.9fr) minmax(0,1.15fr);
+    grid-template-rows:minmax(0,1fr) 170px;
+  }
+  .imgview .core{grid-column:1;grid-row:1}
+  .imgview .side{grid-column:2;grid-row:1;display:flex;flex-direction:column;gap:12px;
+                 min-height:0;overflow-y:auto;padding-right:2px}
+  .imgview .log-panel{grid-column:1 / -1;grid-row:2}
+  #imgReactor svg .iring{transform-box:fill-box;transform-origin:center;animation:spin 24s linear infinite}
+  #imgCore.phase-loading .iring circle{stroke:var(--warn);opacity:.9}
+  #imgCore.phase-running .iring circle{stroke:var(--ok);filter:drop-shadow(0 0 10px rgba(92,242,192,.5))}
+  #imgCore.phase-running #imgPhaseText{fill:#eafff8}
+  .imgbtnrow{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+  .imgbtnrow .btn{flex:0 0 auto;padding:8px 12px;font-size:11px}
+  .urlbox{display:flex;align-items:center;gap:8px;margin-top:10px;padding:7px 10px;
+          border:1px solid var(--line);background:rgba(0,0,0,.45);min-width:0}
+  .urlbox a{color:var(--cyan);font-size:12px;text-decoration:none;letter-spacing:.03em;
+            overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .urlbox a:hover{text-decoration:underline}
+  .langtag{display:inline-block;margin:2px 4px 0 0;padding:1px 6px;font-size:9px;letter-spacing:.06em;
+           border:1px solid rgba(111,242,255,.3);color:#bfeaff;background:rgba(111,242,255,.07)}
+  .pickcard{border:1px solid var(--line);background:rgba(111,242,255,.03);padding:8px 10px;margin-bottom:7px}
+  .pickcard .ph{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+  .pickcard .pt{font-size:12px;color:#eaf7ff;letter-spacing:.04em}
+  .pickcard .pn{font-size:9.5px;color:var(--dim);letter-spacing:.1em;white-space:nowrap}
+  .pickcard small{display:block;font-size:10.5px;color:#b9d4ee;line-height:1.5;margin-top:3px}
+  .pickcard .pact{margin-top:6px;display:flex;gap:6px;flex-wrap:wrap}
+  @media (max-width:1180px){
+    body{display:flex;flex-direction:column;height:auto;overflow:auto}
+    .rail{flex-direction:row;flex-wrap:wrap;border:0;background:none;padding:0 0 10px;clip-path:none}
+    .railfoot{display:none}
+    .imgview{display:flex;flex-direction:column;height:auto}
+    .imgview .side{overflow:visible}
+    .imgview .log-panel{height:300px}
+  }
 </style>
 </head>
 <body>
 <canvas id="stars"></canvas>
 <div class="grid-overlay"></div>
 <div class="vignette"></div>
+
+<nav class="rail" id="sideRail" aria-label="模式切換">
+  <div class="rtitle">MODE SELECT</div>
+  <button class="railbtn active" id="navText" data-view="text" type="button">
+    <b>文字聊天</b><small>LLAMA.CPP · OPENAI /v1</small>
+  </button>
+  <button class="railbtn" id="navImage" data-view="image" type="button">
+    <b>生圖模型</b><small>COMFYUI · DIFFUSION</small>
+  </button>
+  <div class="railfoot">
+    <span>GPU <b id="railGpu">—</b></span>
+    <span id="railMode">MODE · TEXT</span>
+  </div>
+</nav>
 
 <header>
   <div class="brand">
@@ -544,7 +629,7 @@
   </div>
 </header>
 
-<main>
+<main id="viewText">
   <section class="panel core phase-idle" id="corePanel">
     <div class="panel-head"><span class="tag">核心</span><span class="mono">CORE · REACTOR</span></div>
 
@@ -620,6 +705,77 @@
   </section>
 </main>
 
+<section class="imgview hidden" id="viewImage">
+  <section class="panel core phase-idle" id="imgCore">
+    <div class="panel-head"><span class="tag">生圖引擎</span><span class="mono">COMFYUI · DIFFUSION CORE</span></div>
+
+    <div class="reactor" id="imgReactor">
+      <svg viewBox="0 0 300 300" preserveAspectRatio="xMidYMid meet">
+        <circle cx="150" cy="150" r="126" fill="none" stroke="rgba(111,242,255,.12)"/>
+        <circle cx="150" cy="150" r="104" fill="none" stroke="rgba(167,123,255,.22)" stroke-dasharray="5 11"/>
+        <g class="iring"><circle cx="150" cy="150" r="74" fill="none" stroke="rgba(111,242,255,.5)"
+             stroke-dasharray="30 18" stroke-linecap="round"/></g>
+        <circle cx="150" cy="150" r="44" fill="none" stroke="rgba(111,242,255,.65)"/>
+        <text x="150" y="147" text-anchor="middle" class="mono" font-size="15" letter-spacing="2.5"
+              fill="#eaf7ff" id="imgPhaseText">IDLE</text>
+        <text x="150" y="167" text-anchor="middle" class="mono" font-size="8.5" letter-spacing="2"
+              fill="rgba(198,220,255,.55)" id="imgPhaseSub">ENGINE STANDBY</text>
+      </svg>
+    </div>
+
+    <div class="imgbtnrow">
+      <button class="btn primary" id="imgStart" type="button">一鍵啟動</button>
+      <button class="btn danger" id="imgStop" type="button" disabled>停止・釋放顯存</button>
+      <button class="btn ghost" id="imgPurge" type="button">清空殘留</button>
+      <button class="btn ghost" id="imgOpen" type="button" disabled>開啟 ComfyUI</button>
+      <button class="btn ghost" id="imgTest" type="button" disabled>連線測試</button>
+      <button class="btn ghost" id="imgLibBtn" type="button">生圖模型庫</button>
+    </div>
+
+    <div class="urlbox">
+      <span class="mono" style="font-size:9.5px;letter-spacing:.14em;color:var(--dim)">LOCAL</span>
+      <a id="imgUrl" href="http://127.0.0.1:8188" target="_blank" rel="noopener">http://127.0.0.1:8188</a>
+      <button class="mini" id="imgCopy" type="button">複製</button>
+    </div>
+    <div class="hintline mono" id="imgHint">啟動後會自動用預設瀏覽器打開 ComfyUI 畫布。</div>
+  </section>
+
+  <div class="side">
+    <section class="panel" id="imgTelemetry">
+      <div class="panel-head"><span class="tag">生圖遙測</span><span class="mono" id="ivDeviceHead">—</span></div>
+      <div class="rows">
+        <div class="row"><span class="k">ENGINE</span><span class="v mono" id="ivVer">—</span></div>
+        <div class="row"><span class="k">DEVICE</span><span class="v mono" id="ivDev">—</span></div>
+        <div class="row"><span class="k">PORT</span><span class="v mono" id="ivPort">—</span></div>
+        <div class="row"><span class="k">PID</span><span class="v mono" id="ivPid">—</span></div>
+        <div class="row"><span class="k">UPTIME</span><span class="v mono" id="ivUp">—</span></div>
+        <div class="row"><span class="k">佇列</span><span class="v mono" id="ivQueue">—</span></div>
+        <div class="row"><span class="k">TORCH</span><span class="v mono" id="ivTorch">—</span></div>
+        <div class="row"><span class="k">GGUF 節點</span><span class="v mono" id="ivGguf">—</span></div>
+      </div>
+      <div class="vram">
+        <div class="bar"><div class="fill" id="imgVramFill"></div><div class="ticks"></div></div>
+        <div class="legend"><span>VRAM <b id="imgVramText">—</b></span><span id="imgGpuName">—</span></div>
+        <div class="vramhint" id="imgVramHint"></div>
+      </div>
+      <div class="lanrow"><span class="lanlabel">PATH</span>
+        <span class="mono" id="ivRoot" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">—</span>
+      </div>
+    </section>
+
+    <section class="panel" id="imgReco">
+      <div class="panel-head"><span class="tag">顯卡建議</span><span class="mono" id="imgHw">偵測中…</span></div>
+      <div id="imgPicks"><div class="empty">讀取建議…</div></div>
+      <div class="hintline mono" id="imgRecoHint">依顯存排序，並標注每個模型支援的提示詞語言。</div>
+    </section>
+  </div>
+
+  <section class="panel log-panel">
+    <div class="panel-head"><span class="tag">引擎日誌</span><span class="mono">HERTA://COMFYUI.LOG</span></div>
+    <pre class="log" id="imgLog"></pre>
+  </section>
+</section>
+
 <footer>
   <span class="quote" id="quote">模擬宇宙已就緒，人偶，別讓我等太久。</span>
   <span class="mono">llama.cpp b11756 · CUDA 13.4 · sm_120 · <span id="footNote">OpenAI /v1 + Anthropic /v1/messages</span></span>
@@ -688,6 +844,59 @@
       <div style="display:flex;gap:10px">
         <button class="mini" id="dlCancel" disabled>取消下載</button>
         <button class="mini" id="dlBack">回本機模型</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="imgModal" role="dialog" aria-modal="true" aria-labelledby="imgTitle" tabindex="-1">
+  <div class="modal-card">
+    <div class="modal-head">
+      <span class="tag" id="imgTitle">生圖模型庫</span>
+      <span class="mono dir" id="imgDir">—</span>
+      <button class="x" id="imgClose">✕</button>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" data-itab="local" id="itabLocal">本機生圖模型</button>
+      <button class="tab" data-itab="search" id="itabSearch">Hugging Face 搜尋</button>
+      <button class="tab" data-itab="reco" id="itabReco">顯卡建議</button>
+      <button class="tab" data-itab="dl" id="itabDl">下載</button>
+    </div>
+
+    <div class="tabpane" id="ipaneLocal">
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px">
+        <button class="mini" id="imgRefresh" type="button">重新整理</button>
+        <span class="hintline mono" id="imgLocalMeta">—</span>
+      </div>
+      <div class="mtable" id="imgLocalList"><div class="empty">讀取中…</div></div>
+    </div>
+
+    <div class="tabpane hidden" id="ipaneSearch">
+      <div class="searchbar">
+        <input id="imgQ" placeholder="qwen-image / flux / illustrious / sdxl / chroma / z-image">
+        <button class="mini use" id="imgGo" type="button">搜尋</button>
+      </div>
+      <div class="hintline mono" style="margin-bottom:6px">支援 text-to-image 管線；每列標注該模型可接受的提示詞語言。</div>
+      <div class="mlist" id="imgList"><div class="empty">輸入關鍵字搜尋 Hugging Face 上的文生圖模型。</div></div>
+    </div>
+
+    <div class="tabpane hidden" id="ipaneReco">
+      <div class="reco-head2">
+        <span class="rt">這張顯卡的最佳選擇</span>
+        <span class="rh mono" id="imgRecoMeta">偵測中…</span>
+      </div>
+      <div class="mlist" id="imgRecoList"><div class="empty">讀取建議…</div></div>
+      <div class="hintline mono">下載會直接放進 ComfyUI 對應的 models 子目錄（diffusion_models / text_encoders / vae）。</div>
+    </div>
+
+    <div class="tabpane hidden" id="ipaneDl">
+      <div class="dlrow"><span id="imgDlName">沒有進行中的下載</span><span id="imgDlPct">0%</span></div>
+      <div class="dlbars"><div class="fill" id="imgDlFill"></div></div>
+      <div class="hintline mono" id="imgDlMeta">從搜尋分頁挑一個權重即可下載；完成後在 ComfyUI 重新整理節點清單。</div>
+      <div style="display:flex;gap:10px">
+        <button class="mini" id="imgDlCancel" type="button" disabled>取消下載</button>
+        <button class="mini" id="imgDlBack" type="button">回本機模型</button>
       </div>
     </div>
   </div>
@@ -785,6 +994,52 @@
         </label>
         <label class="setrow"><span>Anthropic 連接埠</span>
           <input type="number" id="setAnthPort" min="1024" max="65535" step="1">
+        </label>
+      </div>
+
+      <div class="setgroup">
+        <div class="settitle">生圖引擎 <small>ComfyUI · 停止後會自動釋放顯存</small></div>
+        <label class="setrow"><span>ComfyUI 安裝路徑</span>
+          <input type="text" id="setImgDir" placeholder="留空 = 自動偵測（D:\AI\ComfyUI 等）" autocomplete="off">
+        </label>
+        <label class="setrow"><span>Python 解譯器</span>
+          <input type="text" id="setImgPy" placeholder="留空 = 自動找 venv\Scripts\python.exe" autocomplete="off">
+        </label>
+        <label class="setrow"><span>連接埠</span>
+          <input type="number" id="setImgPort" min="1024" max="65535" step="1">
+        </label>
+        <label class="setrow"><span>監聽位址</span>
+          <select id="setImgListen">
+            <option value="127.0.0.1">127.0.0.1（僅本機）</option>
+            <option value="0.0.0.0">0.0.0.0（區網可用）</option>
+          </select>
+        </label>
+        <label class="setrow"><span>顯存模式</span>
+          <select id="setImgVram">
+            <option value="auto">auto（依顯存自動選擇）</option>
+            <option value="high">high（權重常駐，≥12 GB）</option>
+            <option value="normal">normal（8–11 GB）</option>
+            <option value="low">low（&lt;8 GB 或降解析度）</option>
+            <option value="verylow">verylow（極省，&lt;6 GB 或大圖降級）</option>
+          </select>
+        </label>
+        <label class="setrow"><span>啟動後自動開瀏覽器</span>
+          <input type="checkbox" id="setImgAutoOpen">
+        </label>
+        <label class="setrow"><span>指定瀏覽器</span>
+          <input type="text" id="setImgBrowser" placeholder="留空 = 系統預設；可填 msedge / chrome / 完整路徑" autocomplete="off">
+        </label>
+        <label class="setrow"><span>額外啟動參數</span>
+          <input type="text" id="setImgArgs" placeholder="例如 --preview-method auto" autocomplete="off">
+        </label>
+        <label class="setrow"><span>載入逾時（秒）</span>
+          <input type="number" id="setImgLoadTimeout" min="30" max="1800" step="10">
+        </label>
+        <label class="setrow"><span>出圖逾時（秒）</span>
+          <input type="number" id="setImgGenTimeout" min="30" max="3600" step="10">
+        </label>
+        <label class="setrow"><span>自我測試工作流（API JSON）</span>
+          <input type="text" id="setImgWorkflow" placeholder="留空 = 依本機權重自動組裝最小工作流" autocomplete="off">
         </label>
       </div>
 
@@ -1506,6 +1761,103 @@ const I18N = {
     "LOCAL_META": "{n} 個 GGUF · GPU {gpu} GB · 目前上下文 {ctx}",
   },
   "zh-Hans": {
+    "引擎就緒：": "引擎就緒：",
+    " · 停止後會自動釋放顯存": " · 停止後會自動釋放顯存",
+    "正在載入權重…": "正在載入權重…",
+    "按「一鍵啟動」開始，或先到生圖模型庫挑模型。": "按「一鍵啟動」開始，或先到生圖模型庫挑模型。",
+    "找不到 ComfyUI 安裝，請先在設定裡指定路徑。": "找不到 ComfyUI 安裝，請先在設定裡指定路徑。",
+    "正在啟動 ComfyUI 並載入權重…（首次可能要 1–3 分鐘）": "正在啟動 ComfyUI 並載入權重…（首次可能要 1–3 分鐘）",
+    "正在停止引擎並釋放顯存…": "正在停止引擎並釋放顯存…",
+    "正在停止引擎並掃掉殘留的 CUDA 程序…": "正在停止引擎並掃掉殘留的 CUDA 程序…",
+    "正在送出測試工作流（512² · 4 步）…": "正在送出測試工作流（512² · 4 步）…",
+    "測試完成": "測試完成",
+    "需": "需",
+    "首選": "首选",
+    "速度優先": "速度优先",
+    "動漫特化": "动漫特化",
+    "畫質上限": "画质上限",
+    "English 自然語言": "English 自然语言",
+    "中文": "中文",
+    "日本語": "日本語",
+    "Danbooru 標籤（英文）": "Danbooru 标签（英文）",
+    "已安裝": "已安装",
+    "HERTA SPACE STATION // 本地推理終端": "HERTA SPACE STATION // 本地推理终端",
+    "推薦": "推荐",
+    "精選模型 · 一鍵下載": "精选模型 · 一键下载",
+    "讀取推薦清單…": "读取推荐清单…",
+    "下載完成會自動套用，並依顯存自動配置上下文與 KV 快取。": "下载完成会自动套用，并依显存自动配置上下文与 KV 缓存。",
+    "繁體中文": "繁體中文",
+    "简体中文": "简体中文",
+    "high（權重常駐，≥12 GB）": "high（权重常驻，≥12 GB）",
+    "normal（8–11 GB）": "normal（8–11 GB）",
+    "low（&lt;8 GB 或降解析度）": "low（&lt;8 GB 或降分辨率）",
+    "verylow（極省，&lt;6 GB 或大圖降級）": "verylow（极省，&lt;6 GB 或大图降级）",
+    "留空 = 不驗證": "留空 = 不验证",
+    "切換模型時自動配置": "切换模型时自动配置",
+    "Anthropic 連接埠": "Anthropic 端口",
+    "例如 qwen3.8 27b、deepseek、gemma 12b、mistral 7b": "例如 qwen3.8 27b、deepseek、gemma 12b、mistral 7b",
+    "文字聊天": "文字聊天",
+    "生圖模型": "生图模型",
+    "支援 text-to-image 管線；每列標注該模型可接受的提示詞語言。": "支持 text-to-image 管线；每列标注该模型可接受的提示词语言。",
+    "輸入關鍵字搜尋 Hugging Face 上的文生圖模型。": "输入关键字搜索 Hugging Face 上的文生图模型。",
+    "下載會直接放進 ComfyUI 對應的 models 子目錄（diffusion_models / text_encoders / vae）。": "下载会直接放进 ComfyUI 对应的 models 子目录（diffusion_models / text_encoders / vae）。",
+    "從搜尋分頁挑一個權重即可下載；完成後在 ComfyUI 重新整理節點清單。": "从搜索分页挑一个权重即可下载；完成后在 ComfyUI 重新整理节点清单。",
+    /* image engine */
+    "生圖引擎": "生图引擎",
+    "一鍵啟動": "一键启动",
+    "停止・釋放顯存": "停止・释放显存",
+    "清空殘留": "清空残留",
+    "開啟 ComfyUI": "打开 ComfyUI",
+    "生圖模型庫": "生图模型库",
+    "複製": "复制",
+    "啟動後會自動用預設瀏覽器打開 ComfyUI 畫布。": "启动后会自动用默认浏览器打开 ComfyUI 画布。",
+    "生圖遙測": "生图遥测",
+    "佇列": "队列",
+    "GGUF 節點": "GGUF 节点",
+    "顯卡建議": "显卡建议",
+    "讀取建議…": "读取建议…",
+    "依顯存排序，並標注每個模型支援的提示詞語言。": "依显存排序，并标注每个模型支持的提示词语言。",
+    "引擎日誌": "引擎日志",
+    "引擎指令": "引擎指令",
+    "工作流": "工作流",
+    "畫布": "画布",
+    "生圖控制台離線：": "生图控制台离线：",
+    "未安裝": "未安装",
+    "找不到 ComfyUI 安裝": "找不到 ComfyUI 安装",
+    "沒有建議。": "没有建议。",
+    "在 HF 搜尋": "在 HF 搜索",
+    "依顯存排序": "依显存排序",
+    "用途": "用途",
+    "提示詞語言": "提示词语言",
+    "狀態": "状态",
+    "已就緒": "已就绪",
+    "讀取失敗：": "读取失败：",
+    "搜尋失敗：": "搜索失败：",
+    "讀取建議失敗：": "读取建议失败：",
+    "讀取檔案清單失敗：": "读取文件清单失败：",
+    "沒有結果，換個關鍵字（例如 sdxl / flux / qwen image）。": "没有结果，换个关键字（例如 sdxl / flux / qwen image）。",
+    "停止中…": "停止中…",
+    "載入中…": "加载中…",
+    "執行中": "执行中",
+    "本機生圖模型": "本机生图模型",
+    "讀取中…": "读取中…",
+    "這張顯卡的最佳選擇": "这张显卡的最佳选择",
+    "ComfyUI · 停止後會自動釋放顯存": "ComfyUI · 停止后会自动释放显存",
+    "ComfyUI 安裝路徑": "ComfyUI 安装路径",
+    "Python 解譯器": "Python 解释器",
+    "顯存模式": "显存模式",
+    "auto（依顯存自動選擇）": "auto（依显存自动选择）",
+    "啟動後自動開瀏覽器": "启动后自动开浏览器",
+    "指定瀏覽器": "指定浏览器",
+    "額外啟動參數": "额外启动参数",
+    "載入逾時（秒）": "加载超时（秒）",
+    "出圖逾時（秒）": "出图超时（秒）",
+    "自我測試工作流（API JSON）": "自测工作流（API JSON）",
+    "留空 = 自動偵測（D:\AI\ComfyUI 等）": "留空 = 自动侦测（D:\AI\ComfyUI 等）",
+    "留空 = 自動找 venv\Scripts\python.exe": "留空 = 自动找 venv\Scripts\python.exe",
+    "留空 = 系統預設；可填 msedge / chrome / 完整路徑": "留空 = 系统预设；可填 msedge / chrome / 完整路径",
+    "例如 --preview-method auto": "例如 --preview-method auto",
+    "留空 = 依本機權重自動組裝最小工作流": "留空 = 依本机权重自动组装最小工作流",
     "模擬宇宙 · 本地推理終端": "模拟宇宙 · 本地推理终端",
     "設定": "设置", "模型庫 · MODELS": "模型库 · MODELS", "核心": "核心",
     "待機": "待机", "啟動模組": "启动模块", "停止模組": "停止模块",
@@ -1559,6 +1911,103 @@ const I18N = {
     "SEARCHING": "搜索「{q}」中…",
   },
   "en": {
+    "引擎就緒：": "Engine ready: ",
+    " · 停止後會自動釋放顯存": " · VRAM is released when you stop it",
+    "正在載入權重…": "Loading weights…",
+    "按「一鍵啟動」開始，或先到生圖模型庫挑模型。": "Press One-click start, or browse the image model library first.",
+    "找不到 ComfyUI 安裝，請先在設定裡指定路徑。": "No ComfyUI install found; point to it in Settings first.",
+    "正在啟動 ComfyUI 並載入權重…（首次可能要 1–3 分鐘）": "Starting ComfyUI and loading weights… (first run can take 1-3 minutes)",
+    "正在停止引擎並釋放顯存…": "Stopping the engine and freeing VRAM…",
+    "正在停止引擎並掃掉殘留的 CUDA 程序…": "Stopping the engine and sweeping leftover CUDA processes…",
+    "正在送出測試工作流（512² · 4 步）…": "Submitting a smoke workflow (512² · 4 steps)…",
+    "測試完成": "Smoke test passed",
+    "需": "needs",
+    "首選": "Top pick",
+    "速度優先": "Speed first",
+    "動漫特化": "Anime tuned",
+    "畫質上限": "Max quality",
+    "English 自然語言": "English prose",
+    "中文": "Chinese",
+    "日本語": "Japanese",
+    "Danbooru 標籤（英文）": "Danbooru tags (English)",
+    "已安裝": "Installed",
+    "HERTA SPACE STATION // 本地推理終端": "HERTA SPACE STATION // LOCAL INFERENCE TERMINAL",
+    "推薦": "Picks",
+    "精選模型 · 一鍵下載": "Curated models · one-click download",
+    "讀取推薦清單…": "Loading picks…",
+    "下載完成會自動套用，並依顯存自動配置上下文與 KV 快取。": "Downloads are applied automatically, with context and KV sized to your VRAM.",
+    "繁體中文": "Traditional Chinese",
+    "简体中文": "Simplified Chinese",
+    "high（權重常駐，≥12 GB）": "high (keep weights resident, ≥12 GB)",
+    "normal（8–11 GB）": "normal (8–11 GB)",
+    "low（&lt;8 GB 或降解析度）": "low (&lt;8 GB or lower resolution)",
+    "verylow（極省，&lt;6 GB 或大圖降級）": "verylow (tightest, &lt;6 GB or big images)",
+    "留空 = 不驗證": "Blank = no auth",
+    "切換模型時自動配置": "Auto-plan when switching models",
+    "Anthropic 連接埠": "Anthropic port",
+    "例如 qwen3.8 27b、deepseek、gemma 12b、mistral 7b": "e.g. qwen3.8 27b, deepseek, gemma 12b, mistral 7b",
+    "文字聊天": "Text chat",
+    "生圖模型": "Image model",
+    "支援 text-to-image 管線；每列標注該模型可接受的提示詞語言。": "Text-to-image pipelines only; each row shows the prompt languages it accepts.",
+    "輸入關鍵字搜尋 Hugging Face 上的文生圖模型。": "Search Hugging Face for text-to-image models.",
+    "下載會直接放進 ComfyUI 對應的 models 子目錄（diffusion_models / text_encoders / vae）。": "Downloads land in the matching ComfyUI models folder (diffusion_models / text_encoders / vae).",
+    "從搜尋分頁挑一個權重即可下載；完成後在 ComfyUI 重新整理節點清單。": "Pick a weight file in the search tab; refresh the node list in ComfyUI afterwards.",
+    /* image engine */
+    "生圖引擎": "Image engine",
+    "一鍵啟動": "Start",
+    "停止・釋放顯存": "Stop · free VRAM",
+    "清空殘留": "Purge",
+    "開啟 ComfyUI": "Open ComfyUI",
+    "生圖模型庫": "Image library",
+    "複製": "Copy",
+    "啟動後會自動用預設瀏覽器打開 ComfyUI 畫布。": "The ComfyUI canvas opens in your default browser once the engine is up.",
+    "生圖遙測": "Image telemetry",
+    "佇列": "Queue",
+    "GGUF 節點": "GGUF nodes",
+    "顯卡建議": "GPU advice",
+    "讀取建議…": "Loading advice…",
+    "依顯存排序，並標注每個模型支援的提示詞語言。": "Sorted by VRAM need, with the prompt languages each model understands.",
+    "引擎日誌": "Engine log",
+    "引擎指令": "Engine command",
+    "工作流": "Workflow",
+    "畫布": "Canvas",
+    "生圖控制台離線：": "Image console offline: ",
+    "未安裝": "Missing",
+    "找不到 ComfyUI 安裝": "No ComfyUI install found",
+    "沒有建議。": "No suggestions.",
+    "在 HF 搜尋": "Search HF",
+    "依顯存排序": "Sort by VRAM fit",
+    "用途": "Role",
+    "提示詞語言": "Prompt languages",
+    "狀態": "Status",
+    "已就緒": "Ready",
+    "讀取失敗：": "Load failed: ",
+    "搜尋失敗：": "Search failed: ",
+    "讀取建議失敗：": "Advice failed: ",
+    "讀取檔案清單失敗：": "Could not read the file list: ",
+    "沒有結果，換個關鍵字（例如 sdxl / flux / qwen image）。": "Nothing found — try another keyword (sdxl / flux / qwen image).",
+    "停止中…": "Stopping…",
+    "載入中…": "Loading…",
+    "執行中": "Running",
+    "本機生圖模型": "Local image models",
+    "讀取中…": "Loading…",
+    "這張顯卡的最佳選擇": "Best fit for this GPU",
+    "ComfyUI · 停止後會自動釋放顯存": "ComfyUI · VRAM is released on stop",
+    "ComfyUI 安裝路徑": "ComfyUI install path",
+    "Python 解譯器": "Python interpreter",
+    "顯存模式": "VRAM mode",
+    "auto（依顯存自動選擇）": "auto (pick from VRAM)",
+    "啟動後自動開瀏覽器": "Open the browser on start",
+    "指定瀏覽器": "Preferred browser",
+    "額外啟動參數": "Extra launch args",
+    "載入逾時（秒）": "Load timeout (s)",
+    "出圖逾時（秒）": "Generation timeout (s)",
+    "自我測試工作流（API JSON）": "Self-test workflow (API JSON)",
+    "留空 = 自動偵測（D:\AI\ComfyUI 等）": "Blank = auto-detect (D:\AI\ComfyUI, ...)",
+    "留空 = 自動找 venv\Scripts\python.exe": "Blank = find venv\Scripts\python.exe",
+    "留空 = 系統預設；可填 msedge / chrome / 完整路徑": "Blank = system default; msedge / chrome / full path",
+    "例如 --preview-method auto": "e.g. --preview-method auto",
+    "留空 = 依本機權重自動組裝最小工作流": "Blank = assemble a minimal workflow from local weights",
     "模擬宇宙 · 本地推理終端": "Simulated Universe · local inference terminal",
     "設定": "SETTINGS", "模型庫 · MODELS": "MODELS", "核心": "CORE",
     "待機": "Idle", "啟動模組": "Start model", "停止模組": "Stop model",
@@ -1659,6 +2108,70 @@ const I18N = {
   ["下載", "下载", "Download"],
   ["使用", "使用", "Use"],
   ["切換模型中…", "切换模型中…", "Switching model…"],
+  /* image engine (ComfyUI) */
+  ["文字聊天", "文字聊天", "Text chat"],
+  ["生圖模型", "生图模型", "Image model"],
+  ["生圖引擎", "生图引擎", "Image engine"],
+  ["一鍵啟動", "一键启动", "One-click start"],
+  ["停止・釋放顯存", "停止・释放显存", "Stop · free VRAM"],
+  ["清空殘留", "清空残留", "Sweep leftovers"],
+  ["開啟 ComfyUI", "打开 ComfyUI", "Open ComfyUI"],
+  ["連線測試", "连接测试", "Connection test"],
+  ["生圖模型庫", "生图模型库", "Image model library"],
+  ["複製", "复制", "Copy"],
+  ["啟動後會自動用預設瀏覽器打開 ComfyUI 畫布。", "启动后会自动用默认浏览器打开 ComfyUI 画布。",
+   "Starts the engine, then opens the ComfyUI canvas in your default browser."],
+  ["生圖遙測", "生图遥测", "Image telemetry"],
+  ["佇列", "队列", "Queue"],
+  ["GGUF 節點", "GGUF 节点", "GGUF nodes"],
+  ["顯卡建議", "显卡建议", "GPU picks"],
+  ["讀取建議…", "读取建议…", "Loading picks…"],
+  ["依顯存排序，並標注每個模型支援的提示詞語言。", "依显存排序，并标注每个模型支持的提示词语言。",
+   "Sorted by VRAM need, with the prompt languages each model accepts."],
+  ["引擎日誌", "引擎日志", "Engine log"],
+  ["本機生圖模型", "本机生图模型", "Local image models"],
+  ["讀取中…", "读取中…", "Loading…"],
+  ["支援 text-to-image 管線；每列標注該模型可接受的提示詞語言。",
+   "支持 text-to-image 管线；每列标注该模型可接受的提示词语言。",
+   "Text-to-image pipelines only; each row lists the prompt languages that model accepts."],
+  ["輸入關鍵字搜尋 Hugging Face 上的文生圖模型。", "输入关键字搜索 Hugging Face 上的文生图模型。",
+   "Type a keyword to search text-to-image models on Hugging Face."],
+  ["這張顯卡的最佳選擇", "这张显卡的最佳选择", "Best picks for this GPU"],
+  ["下載會直接放進 ComfyUI 對應的 models 子目錄（diffusion_models / text_encoders / vae）。",
+   "下载会直接放进 ComfyUI 对应的 models 子目录（diffusion_models / text_encoders / vae）。",
+   "Downloads land in the matching ComfyUI models subfolder (diffusion_models / text_encoders / vae)."],
+  ["從搜尋分頁挑一個權重即可下載；完成後在 ComfyUI 重新整理節點清單。",
+   "从搜索分页挑一个权重即可下载；完成后在 ComfyUI 刷新节点列表。",
+   "Pick a weight from the search tab to download; refresh ComfyUI's node list afterwards."],
+  ["搜尋中…", "搜索中…", "Searching…"],
+  ["在 HF 搜尋", "在 HF 搜索", "Search on HF"],
+  ["ComfyUI · 停止後會自動釋放顯存", "ComfyUI · 停止后会自动释放显存",
+   "ComfyUI · VRAM is released when stopped"],
+  ["ComfyUI 安裝路徑", "ComfyUI 安装路径", "ComfyUI install path"],
+  ["Python 解譯器", "Python 解释器", "Python interpreter"],
+  ["顯存模式", "显存模式", "VRAM mode"],
+  ["啟動後自動開瀏覽器", "启动后自动开浏览器", "Open the browser after start"],
+  ["指定瀏覽器", "指定浏览器", "Browser"],
+  ["額外啟動參數", "额外启动参数", "Extra launch flags"],
+  ["載入逾時（秒）", "载入超时（秒）", "Load timeout (s)"],
+  ["出圖逾時（秒）", "出图超时（秒）", "Generation timeout (s)"],
+  ["自我測試工作流（API JSON）", "自检工作流（API JSON）", "Self-test workflow (API JSON)"],
+  ["auto（依顯存自動選擇）", "auto（依显存自动选择）", "auto (derive from VRAM)"],
+  ["high（權重常駐，≥12 GB）", "high（权重常驻，≥12 GB）", "high (weights stay resident, ≥12 GB)"],
+  ["normal（8–11 GB）", "normal（8–11 GB）", "normal (8–11 GB)"],
+  ["low（<8 GB 或降解析度）", "low（<8 GB 或降分辨率）", "low (<8 GB or lower resolution)"],
+  ["留空 = 自動偵測（D:\\AI\\ComfyUI 等）", "留空 = 自动检测（D:\\AI\\ComfyUI 等）",
+   "Blank = auto-detect (e.g. D:\\AI\\ComfyUI)"],
+  ["留空 = 自動找 venv\\Scripts\\python.exe", "留空 = 自动找 venv\\Scripts\\python.exe",
+   "Blank = find venv\\Scripts\\python.exe"],
+  ["留空 = 系統預設；可填 msedge / chrome / 完整路徑", "留空 = 系统默认；可填 msedge / chrome / 完整路径",
+   "Blank = system default; msedge / chrome / full path also work"],
+  ["例如 --preview-method auto", "例如 --preview-method auto", "e.g. --preview-method auto"],
+  ["留空 = 依本機權重自動組裝最小工作流", "留空 = 依本机权重自动组装最小工作流",
+   "Blank = build a minimal workflow from the local weights"],
+  ["qwen-image / flux / illustrious / sdxl / chroma / z-image",
+   "qwen-image / flux / illustrious / sdxl / chroma / z-image",
+   "qwen-image / flux / illustrious / sdxl / chroma / z-image"],
 ].forEach(([hant, hans, en]) => {
   I18N["zh-Hant"][hant] = hant;
   I18N["zh-Hans"][hant] = hans;
@@ -1712,6 +2225,9 @@ function applyLang(lang) {
   });
   const sel = $("setLang");
   if (sel) sel.value = LANG;
+  // Engine-supplied prose (model notes, reasons) is localised server-side, so a
+  // language switch has to refetch the recommendations rather than re-walk the DOM.
+  if (IMG.reco && typeof imgLoadRecommend === "function") imgLoadRecommend();
 }
 
 /* ---------- settings ---------- */
@@ -1904,12 +2420,413 @@ $("setReset").onclick = async () => {
   toast("已還原預設值");
 };
 
+/* ---------- image engine (ComfyUI) ---------- */
+const IMG = { phase: "idle", lib: [], reco: null, dl: null, busy: false, searching: false,
+              view: "text", dlDone: false, dlError: "" };
+const fmtBytes = n => {
+  n = Number(n) || 0;
+  if (n >= 1 << 30) return (n / (1 << 30)).toFixed(2) + " GB";
+  if (n >= 1 << 20) return (n / (1 << 20)).toFixed(1) + " MB";
+  if (n >= 1 << 10) return (n / (1 << 10)).toFixed(0) + " KB";
+  return n + " B";
+};
+const langTags = labels => (labels || []).map(l => `<span class="langtag">${esc(l)}</span>`).join("");
+
+// Cards are rebuilt after every poll, so translate them at render time instead of
+// relying on applyLang(), which only walks the document when the language changes.
+function tr(text) {
+  if (!text || LANG === "zh-Hant") return text;
+  const dict = I18N[LANG] || {};
+  return dict[text] !== undefined ? dict[text] : text;
+}
+
+function relabel(root) {
+  if (!root || LANG === "zh-Hant") return;
+  const dict = I18N[LANG] || {};
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let node;
+  while ((node = walker.nextNode())) {
+    const key = node.nodeValue.trim();
+    if (!key) continue;
+    const tr = dict[key];
+    if (tr !== undefined) node.nodeValue = node.nodeValue.replace(key, tr);
+  }
+}
+let imgTimer = null;
+
+function setView(view) {
+  IMG.view = view === "image" ? "image" : "text";
+  $("navText").classList.toggle("active", IMG.view === "text");
+  $("navImage").classList.toggle("active", IMG.view === "image");
+  $("railMode").textContent = "MODE · " + (IMG.view === "image" ? "IMAGE" : "TEXT");
+  $("viewText").classList.toggle("hidden", IMG.view === "image");
+  $("viewImage").classList.toggle("hidden", IMG.view !== "image");
+  try { localStorage.setItem("herta.view", IMG.view); } catch (e) {}
+  if (IMG.view === "image") {
+    imgPoll();
+    if (!IMG.reco) imgLoadRecommend();
+    if (!imgTimer) imgTimer = setInterval(imgPoll, 1500);
+  } else if (imgTimer) {
+    clearInterval(imgTimer);
+    imgTimer = null;
+  }
+}
+
+async function imgPoll() {
+  try {
+    const d = await (await fetch("/api/image/status", { cache: "no-store" })).json();
+    paintImage(d);
+  } catch (e) {
+    $("imgHint").textContent = tr("生圖控制台離線：") + e.message;
+  }
+}
+
+function paintImage(s) {
+  IMG.phase = s.phase || "idle";
+  const running = IMG.phase === "running", loading = IMG.phase === "loading";
+  $("imgPhaseText").textContent = running ? "READY" : (loading ? "LOADING" : "IDLE");
+  $("imgPhaseSub").textContent = running
+    ? String(s.device || "ENGINE").toUpperCase() + " ONLINE"
+    : (loading ? "LOADING WEIGHTS" : "ENGINE STANDBY");
+  $("imgCore").classList.remove("phase-idle", "phase-loading", "phase-running");
+  $("imgCore").classList.add(running ? "phase-running" : (loading ? "phase-loading" : "phase-idle"));
+  $("imgStart").disabled = running || loading || IMG.busy;
+  $("imgStop").disabled = (!running && !loading) || IMG.busy;
+  $("imgOpen").disabled = !running;
+  $("imgTest").disabled = !running;
+  $("imgUrl").textContent = s.url || "http://127.0.0.1:8188";
+  $("imgUrl").href = s.url || "http://127.0.0.1:8188";
+  $("ivVer").textContent = (s.engine || "ComfyUI") + (s.engine_version ? " " + s.engine_version : "");
+  $("ivDev").textContent = s.device
+    ? s.device + (s.device_name && s.device_name !== s.device ? " · " + s.device_name : "") : "—";
+  $("ivPort").textContent = s.port == null ? "—" : s.port;
+  $("ivPid").textContent = s.pid == null ? "—" : s.pid;
+  $("ivUp").textContent = s.uptime ? fmtUp(s.uptime) : "—";
+  $("ivQueue").textContent = s.queue ? s.queue.running + " / " + s.queue.pending : "—";
+  $("ivTorch").textContent = s.torch || "—";
+  $("ivGguf").textContent = s.gguf_nodes ? tr("已載入") : tr("未安裝");
+  $("ivDeviceHead").textContent = String(s.device || s.engine || "COMFYUI").toUpperCase();
+  $("ivRoot").textContent = s.root || "找不到 ComfyUI 安裝";
+  $("ivRoot").title = s.root || "";
+  const v = s.vram || {};
+  const pct = v.total ? Math.min(100, Math.round(v.used / v.total * 100)) : 0;
+  $("imgVramFill").style.width = pct + "%";
+  $("imgVramText").textContent = fmtGB(v.used) + " / " + fmtGB(v.total);
+  $("imgGpuName").textContent = s.device_name || "";
+  $("imgLog").textContent = (s.log || []).join("\n");
+  $("imgLog").scrollTop = $("imgLog").scrollHeight;
+  if (!s.engine_installed) {
+    $("imgVramHint").textContent = "尚未設定 ComfyUI：設定 → 生圖引擎 → 安裝路徑（或設 HERTA_COMFY_DIR）";
+  } else {
+    $("imgVramHint").textContent = s.error ? s.error : "";
+  }
+  if (!IMG.busy) {
+    $("imgHint").textContent = running
+      ? tr("引擎就緒：") + (s.url || "") + tr(" · 停止後會自動釋放顯存")
+      : (loading ? tr("正在載入權重…")
+                 : (s.engine_installed ? tr("按「一鍵啟動」開始，或先到生圖模型庫挑模型。")
+                                       : tr("找不到 ComfyUI 安裝，請先在設定裡指定路徑。")));
+  }
+}
+
+async function imgAct(path, label) {
+  if (IMG.busy) return null;
+  IMG.busy = true; imgPoll();
+  let data = null;
+  try {
+    const r = await fetch(path, { method: "POST" });
+    data = await r.json();
+    toast(resultMessage(data) || (data.ok ? (label || "完成") : "失敗"), !data.ok);
+  } catch (e) {
+    toast("生圖控制台連線失敗：" + e.message, true);
+  }
+  IMG.busy = false; imgPoll();
+  return data;
+}
+
+$("navText").onclick = () => setView("text");
+$("navImage").onclick = () => setView("image");
+$("imgStart").onclick = async () => {
+  IMG.busy = true;
+  $("imgHint").textContent = tr("正在啟動 ComfyUI 並載入權重…（首次可能要 1–3 分鐘）");
+  $("imgCore").classList.remove("phase-idle", "phase-running");
+  $("imgCore").classList.add("phase-loading");
+  $("imgPhaseText").textContent = "LOADING";
+  IMG.busy = false;
+  await imgAct("/api/image/start");
+};
+$("imgStop").onclick = async () => {
+  $("imgHint").textContent = tr("正在停止引擎並釋放顯存…");
+  await imgAct("/api/image/stop");
+};
+$("imgPurge").onclick = async () => {
+  $("imgHint").textContent = tr("正在停止引擎並掃掉殘留的 CUDA 程序…");
+  await imgAct("/api/image/purge");
+};
+$("imgOpen").onclick = async () => {
+  const d = await imgAct("/api/image/open");
+  if (d && d.ok && !d.opened) toast("已取得網址，但瀏覽器沒開起來：" + (d.url || ""), true);
+};
+$("imgTest").onclick = async () => {
+  $("imgHint").textContent = tr("正在送出測試工作流（512² · 4 步）…");
+  const d = await imgAct("/api/image/selftest");
+  if (d && d.ok) $("imgHint").textContent = d.message || tr("測試完成");
+};
+$("imgCopy").onclick = async () => {
+  const url = $("imgUrl").textContent || "";
+  try { await navigator.clipboard.writeText(url); toast("已複製：" + url); }
+  catch (e) { toast("複製失敗，請手動選取：" + url, true); }
+};
+
+async function imgLoadRecommend() {
+  try {
+    const d = await (await fetch(`/api/image/recommend?lang=${encodeURIComponent(LANG)}`, { cache: "no-store" })).json();
+    if (d && d.picks) { IMG.reco = d; renderImgPicks(d); renderImgRecoList(d); }
+  } catch (e) {
+    $("imgPicks").innerHTML = '<div class="empty">讀取建議失敗：' + esc(e.message) + "</div>";
+  }
+}
+
+function pickCard(p, compact) {
+  return `<div class="pickcard">
+    <div class="ph"><span class="pt">${esc(tr(p.tier))} · ${esc(p.family)}</span>
+      <span class="pn">${esc(p.params || "—")} · ${esc(tr("需"))} ${p.min_vram_gb} GB</span></div>
+    <small>${esc(p.note || "")}</small>
+    <div>${langTags(p.lang_labels)}</div>
+    ${compact ? "" : `<small style="color:var(--dim)">${esc(p.reason || "")}</small>`}
+    <div class="pact">
+      <button class="mini" data-q="${esc(p.search || "")}">${esc(tr("在 HF 搜尋"))}</button>
+      ${(p.installed && p.installed.length)
+        ? `<span class="hintline mono">${esc(tr("已安裝"))} ${esc(p.installed.slice(0, 2).join(", "))}</span>` : ""}
+    </div>
+  </div>`;
+}
+
+function renderImgPicks(d) {
+  $("imgHw").textContent = `${d.gpu || "GPU"} · ${d.gpu_total_gb || "?"} GB`;
+  $("railGpu").textContent = d.gpu_total_gb ? d.gpu_total_gb + " GB" : "—";
+  $("imgPicks").innerHTML = (d.picks || []).map(p => pickCard(p)).join("")
+    || '<div class="empty">沒有建議。</div>';
+  relabel($("imgPicks"));
+  $("imgPicks").querySelectorAll("button[data-q]").forEach(b => {
+    b.onclick = () => { imgOpenLib(); imgTab("search"); $("imgQ").value = b.dataset.q || ""; imgSearch(true); };
+  });
+}
+
+function renderImgRecoList(d) {
+  $("imgRecoMeta").textContent = `${d.gpu || "GPU"} · ${d.gpu_total_gb || "?"} GB`;
+  const known = (d.known || []).map(k => `
+    <div class="mtr"><span class="c-name">${esc(k.name)}<small>${esc(k.repo)} · ${esc(k.role)}</small></span>
+      <span class="c-num">—</span><span class="c-num">—</span>
+      <span class="c-act"><button class="mini" data-repo="${esc(k.repo)}">查看權重</button></span></div>`).join("");
+  $("imgRecoList").innerHTML =
+    `<div class="reco"><div class="reco-head"><span class="rt">依顯存排序</span>
+      <span class="rh mono">${esc(d.hint || "")}</span></div></div>` +
+    (d.picks || []).map(p => pickCard(p, true)).join("") + known;
+  relabel($("imgRecoList"));
+  $("imgRecoList").querySelectorAll("button[data-q]").forEach(b => {
+    b.onclick = () => { imgTab("search"); $("imgQ").value = b.dataset.q || ""; imgSearch(true); };
+  });
+  $("imgRecoList").querySelectorAll("button[data-repo]").forEach(b => {
+    b.onclick = () => imgFiles(b.dataset.repo, b);
+  });
+}
+
+/* ---------- image model library ---------- */
+function imgOpenLib() { showModal("imgModal"); imgRefreshLocal(); if (!IMG.reco) imgLoadRecommend(); }
+function imgTab(name) {
+  document.querySelectorAll("#imgModal .tab").forEach(t => t.classList.toggle("active", t.dataset.itab === name));
+  ["local", "search", "reco", "dl"].forEach(k =>
+    $("ipane" + k.charAt(0).toUpperCase() + k.slice(1)).classList.toggle("hidden", k !== name));
+  if (name === "dl") imgPollDownload();
+  if (name === "reco" && !IMG.reco) imgLoadRecommend();
+}
+
+async function imgRefreshLocal() {
+  try {
+    const d = await (await fetch("/api/image/models", { cache: "no-store" })).json();
+    if (!d.ok) { $("imgLocalList").innerHTML = '<div class="empty">' + esc(d.message || "讀取失敗") + "</div>"; return; }
+    $("imgDir").textContent = d.dir || "—";
+    $("imgLocalMeta").textContent = `${(d.items || []).length} 個權重 · ${d.total_gb || 0} GB`;
+    if (!(d.items || []).length) {
+      $("imgLocalList").innerHTML = '<div class="empty">ComfyUI 的 models 目錄還是空的；先到 HF 搜尋下載。</div>';
+      return;
+    }
+    const head = `<div class="mhead"><span>模型</span><span class="c-num">大小</span>
+      <span class="c-num">用途</span><span>提示詞語言</span><span class="c-act">狀態</span></div>`;
+    $("imgLocalList").innerHTML = head + d.items.map(it => `
+      <div class="mtr">
+        <span class="c-name">${esc(it.name)}<small>${esc(it.family)} · ${esc(it.params || "—")} · ${esc(it.folder)}</small></span>
+        <span class="c-num">${it.size_gb} GB</span>
+        <span class="c-num">${esc(it.role)}</span>
+        <span>${langTags(it.lang_labels)}</span>
+        <span class="c-act"><small class="mono" style="color:var(--dim)">已就緒</small></span>
+      </div>`).join("");
+    relabel($("imgLocalList"));
+  } catch (e) {
+    $("imgLocalList").innerHTML = '<div class="empty">讀取失敗：' + esc(e.message) + "</div>";
+  }
+}
+
+async function imgSearch(forced) {
+  const q = ($("imgQ").value || "").trim();
+  if (!q && !forced) { toast("先輸入關鍵字", true); return; }
+  if (IMG.searching) return;
+  IMG.searching = true;
+  $("imgList").innerHTML = '<div class="empty">搜尋中…</div>';
+  try {
+    const d = await (await fetch(`/api/image/hf/search?q=${encodeURIComponent(q)}&limit=30`,
+                                 { cache: "no-store" })).json();
+    if (!d.ok) throw new Error(d.message || "搜尋失敗");
+    IMG.lib = d.items || [];
+    renderImgList();
+  } catch (e) {
+    $("imgList").innerHTML = '<div class="empty">搜尋失敗：' + esc(e.message) + "</div>";
+  } finally { IMG.searching = false; }
+}
+
+function renderImgList() {
+  if (!IMG.lib.length) {
+    $("imgList").innerHTML = '<div class="empty">沒有結果，換個關鍵字（例如 sdxl / flux / qwen image）。</div>';
+    return;
+  }
+  $("imgList").innerHTML = "";
+  IMG.lib.forEach(repo => {
+    const row = document.createElement("div");
+    row.className = "mtr hf";
+    row.innerHTML = `
+      <span class="c-name">${esc(repo.repo)}
+        <small>${esc(repo.family)} · ${esc(repo.params || "—")} · ${esc(repo.updated || "")}${repo.gated ? " · 需授權" : ""}</small>
+        <span>${langTags(repo.lang_labels)}</span></span>
+      <span class="c-num">⬇ ${repo.downloads}</span>
+      <span class="c-num">★ ${repo.likes}</span>
+      <span class="c-act"><button class="mini" type="button">查看權重</button></span>`;
+    row.querySelector("button").onclick = () => imgFiles(repo.repo, row.querySelector("button"));
+    $("imgList").appendChild(row);
+  });
+}
+
+async function imgFiles(repo, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = "載入中…"; }
+  const holder = document.createElement("div");
+  $("imgList").appendChild(holder);
+  try {
+    const d = await (await fetch(`/api/image/hf/files?repo=${encodeURIComponent(repo)}`,
+                                 { cache: "no-store" })).json();
+    if (!d.ok) throw new Error(d.message || "讀取失敗");
+    holder.innerHTML = "";
+    const items = d.items || [];
+    if (!items.length) { holder.innerHTML = '<div class="empty">這個 repo 沒有可用的權重檔。</div>'; return; }
+    items.slice(0, 40).forEach(f => {
+      const line = document.createElement("div");
+      line.className = "mtr hff";
+      line.style.marginLeft = "18px";
+      line.innerHTML = `
+        <span class="c-name">${esc(f.path)}<small>${esc(f.role)} · ${esc(f.family)}</small></span>
+        <span class="c-num">${f.size_gb} GB</span>
+        <span class="c-num"></span>
+        <span class="c-act"><button class="mini" type="button">下載</button></span>`;
+      line.querySelector("button").onclick = async () => {
+        if (!confirm(`下載 ${f.path}（${f.size_gb} GB）到 ComfyUI/models/${f.role}？`)) return;
+        const r = await (await fetch("/api/image/hf/download", {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ repo, file: f.path, role: f.role }),
+        })).json();
+        toast(resultMessage(r) || (r.ok ? "已開始下載" : "下載失敗"), !r.ok);
+        if (r.ok) { IMG.dlDone = false; IMG.dlError = ""; imgTab("dl"); imgPollDownload(); }
+      };
+      holder.appendChild(line);
+    });
+  } catch (e) {
+    holder.innerHTML = '<div class="empty">讀取檔案清單失敗：' + esc(e.message) + "</div>";
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "查看權重"; }
+  }
+}
+
+async function imgPollDownload() {
+  try {
+    const d = await (await fetch("/api/image/download/status", { cache: "no-store" })).json();
+    IMG.dl = d;
+    const pct = Number(d.percent) || 0;
+    $("imgDlFill").style.width = pct + "%";
+    $("imgDlPct").textContent = pct.toFixed(1) + "%";
+    $("imgDlName").textContent = d.file ? d.file + (d.role ? " → " + d.role : "") : "沒有進行中的下載";
+    $("imgDlMeta").textContent = d.active
+      ? `${fmtBytes(d.done)} / ${d.total ? fmtBytes(d.total) : "?"} · ${(Number(d.speed) / 1048576).toFixed(1)} MB/s`
+      : (d.error ? "失敗：" + d.error : (d.finished ? "下載完成：" + (d.target || "") : "從搜尋分頁挑一個權重即可下載"));
+    $("imgDlCancel").disabled = !d.active;
+    if (d.finished && !d.error && !IMG.dlDone) {
+      IMG.dlDone = true; toast("生圖權重下載完成");
+      imgRefreshLocal();
+    }
+    if (d.error && IMG.dlError !== d.error) { IMG.dlError = d.error; toast("下載失敗：" + d.error, true); }
+  } catch (e) { /* the modal simply stops updating */ }
+}
+
+$("imgClose").onclick = () => closeModal("imgModal");
+$("imgModal").addEventListener("click", e => { if (e.target.id === "imgModal") closeModal("imgModal"); });
+$("imgLibBtn").onclick = () => imgOpenLib();
+document.querySelectorAll("#imgModal .tab").forEach(tab => {
+  tab.onclick = () => imgTab(tab.dataset.itab);
+});
+$("imgRefresh").onclick = () => imgRefreshLocal();
+$("imgGo").onclick = () => imgSearch(false);
+$("imgQ").addEventListener("keydown", e => { if (e.key === "Enter") imgSearch(false); });
+$("imgDlBack").onclick = () => imgTab("local");
+$("imgDlCancel").onclick = async () => {
+  const r = await (await fetch("/api/image/download/cancel", { method: "POST" })).json();
+  toast(resultMessage(r) || "已請求取消", !r.ok);
+  imgPollDownload();
+};
+
+function fillImageSettings(s) {
+  const img = (s && s.image) || {};
+  $("setImgDir").value = img.comfyDir || "";
+  $("setImgPy").value = img.pythonExe || "";
+  $("setImgPort").value = img.port ?? 8188;
+  $("setImgListen").value = img.listen || "127.0.0.1";
+  $("setImgVram").value = img.vramMode || "auto";
+  $("setImgAutoOpen").checked = img.autoOpen !== false;
+  $("setImgBrowser").value = img.browser || "";
+  $("setImgArgs").value = img.extraArgs || "";
+  $("setImgLoadTimeout").value = img.loadTimeout ?? 240;
+  $("setImgGenTimeout").value = img.genTimeout ?? 240;
+  $("setImgWorkflow").value = img.selftestWorkflow || "";
+}
+
+function collectImageSettings() {
+  return {
+    comfyDir: $("setImgDir").value.trim(),
+    pythonExe: $("setImgPy").value.trim(),
+    port: parseInt($("setImgPort").value, 10) || 8188,
+    listen: $("setImgListen").value,
+    vramMode: $("setImgVram").value,
+    autoOpen: $("setImgAutoOpen").checked,
+    browser: $("setImgBrowser").value.trim(),
+    extraArgs: $("setImgArgs").value.trim(),
+    loadTimeout: parseInt($("setImgLoadTimeout").value, 10) || 240,
+    genTimeout: parseInt($("setImgGenTimeout").value, 10) || 240,
+    selftestWorkflow: $("setImgWorkflow").value.trim(),
+  };
+}
+
 function dispatchHash() {
   const raw = location.hash.replace(/^#/, "");
   if (!raw) return;
   const [view, qs] = raw.split("&");
   const params = new URLSearchParams(qs || "");
   if (view === "settings") { openSettings(); return; }
+  if (view === "image" || view === "text") { setView(view); return; }
+  if (view === "imagelib") {
+    setView("image");
+    imgOpenLib();
+    const tab = params.get("t");
+    if (tab && ["local", "search", "reco", "dl"].includes(tab)) imgTab(tab);
+    const iq = params.get("iq");
+    if (iq) { imgTab("search"); $("imgQ").value = iq; imgSearch(true); }
+    return;
+  }
   if (view !== "models") return;
   libOpen();
   const q = params.get("q");
@@ -1938,10 +2855,16 @@ function dispatchHash() {
 poll();
 let pollTimer = setInterval(poll, 1500);
 reactorInit();
+try { if (localStorage.getItem("herta.view") === "image") setView("image"); } catch (e) {}
 document.addEventListener("visibilitychange", () => {
   // skip console polling while the window is hidden
-  if (document.hidden) { clearInterval(pollTimer); pollTimer = null; }
-  else if (!pollTimer) { poll(); pollTimer = setInterval(poll, 1500); }
+  if (document.hidden) {
+    clearInterval(pollTimer); pollTimer = null;
+    if (imgTimer) { clearInterval(imgTimer); imgTimer = null; }
+  } else {
+    if (!pollTimer) { poll(); pollTimer = setInterval(poll, 1500); }
+    if (IMG.view === "image" && !imgTimer) imgTimer = setInterval(imgPoll, 1500);
+  }
 });
 </script>
 </body>
