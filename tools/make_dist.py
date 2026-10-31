@@ -392,6 +392,7 @@ MAC_INFO = """<?xml version="1.0" encoding="UTF-8"?>
   <key>CFBundleName</key><string>Herta Station</string>
   <key>CFBundleDisplayName</key><string>Herta Space Station</string>
   <key>CFBundleIdentifier</key><string>com.herta.station</string>
+  <key>CFBundleIconFile</key><string>herta.icns</string>
   <key>CFBundleExecutable</key><string>HertaStation</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>{version}</string>
@@ -420,6 +421,10 @@ def build_macos(platform: str, variant: str | None, pyz: Path | None = None) -> 
     launcher.chmod(0o755)
     (contents / "Info.plist").write_text(MAC_INFO.replace("{version}", VERSION),
                                          encoding="utf-8", newline="\n")
+    icon = ROOT / "assets" / "herta.icns"
+    if icon.exists():
+        shutil.copy2(icon, res / "herta.icns")
+        log("    icon: herta.icns")
     src_pyz = pyz or build_pyz(stage_app())
     shutil.copy2(src_pyz, res / "herta-station.pyz")
     llama = llama_dir("macos-arm64" if platform == "macos-arm64" else "macos-x64", variant)
@@ -428,6 +433,7 @@ def build_macos(platform: str, variant: str | None, pyz: Path | None = None) -> 
         if lib.name == "llama-server" or lib.suffix == ".dylib" or ".dylib." in lib.name:
             lib.chmod(0o755)
     log(f"    {count} files from {llama.name}")
+    _verify_dylibs(res / "llama.cpp")
     helper = rust_bin(platform)
     if helper:
         (res / "bin").mkdir(exist_ok=True)
@@ -435,24 +441,51 @@ def build_macos(platform: str, variant: str | None, pyz: Path | None = None) -> 
         (res / "bin/herta-rs").chmod(0o755)
         log("    herta-rs bundled (Resources/bin/herta-rs)")
 
+    step(f"macOS ({platform}): ad-hoc signature")
+    codesign = shutil.which("codesign")
+    if codesign:
+        try:
+            run([codesign, "--force", "--deep", "--sign", "-", app])
+        except subprocess.CalledProcessError:
+            log("    codesign failed; the bundle still runs, it is just unsigned")
+    else:
+        log("    codesign not available; leaving the bundle unsigned")
+
     step(f"macOS ({platform}): zip")
     DIST.mkdir(exist_ok=True)
     out = DIST / f"HertaStation-{VERSION}-{platform}.zip"
     rm(out)
-    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
-        for path in sorted(app.rglob("*")):
-            arc = str(path.relative_to(stage)).replace(os.sep, "/")
-            info = zipfile.ZipInfo(arc)
-            info.create_system = 3
-            # Windows cannot store POSIX exec bits, so decide them from the name:
-            # Gatekeeper refuses to launch a non-executable launcher/llama-server.
-            info.external_attr = (_macos_mode(path, arc) | (0o40000 if path.is_dir() else 0)) << 16
-            info.date_time = time.localtime(path.stat().st_mtime)[:6]
-            if path.is_dir():
-                zf.writestr(info, b"")
-            else:
-                info.compress_type = zipfile.ZIP_DEFLATED
-                zf.writestr(info, path.read_bytes())
+    ditto = shutil.which("ditto") if sys.platform == "darwin" else None
+    if ditto:
+        # ditto keeps the real POSIX modes and HFS metadata, so the archive
+        # survives unzip, ditto -x -k and a plain double-click in Finder. The
+        # python writer below can only fake modes in external_attr, and it is
+        # only used when packaging from Windows.
+        run([ditto, "-c", "-k", "--sequesterRsrc", "--keepParent", app, out])
+    else:
+        with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
+            for path in sorted(app.rglob("*")):
+                arc = str(path.relative_to(stage)).replace(os.sep, "/")
+                is_dir = path.is_dir()
+                if is_dir:
+                    # Info-ZIP (unzip) and ditto decide "directory" from the trailing
+                    # slash. Without it the bundle unpacks as a zero-byte file called
+                    # "Contents" and everything below it dies with
+                    # "Contents: Not a directory".
+                    arc = arc.rstrip("/") + "/"
+                info = zipfile.ZipInfo(arc)
+                info.create_system = 3
+                # Windows cannot store POSIX exec bits, so decide them from the name:
+                # Gatekeeper refuses to launch a non-executable launcher/llama-server.
+                info.external_attr = (_macos_mode(path, arc) | (0o40000 if is_dir else 0)) << 16
+                if is_dir:
+                    info.external_attr |= 0x10          # MS-DOS directory attribute
+                info.date_time = time.localtime(path.stat().st_mtime)[:6]
+                if is_dir:
+                    zf.writestr(info, b"")
+                else:
+                    info.compress_type = zipfile.ZIP_DEFLATED
+                    zf.writestr(info, path.read_bytes())
     log(f"    {out.name}: {out.stat().st_size/1e6:.1f} MB")
     return out
 
@@ -469,6 +502,48 @@ def _macos_mode(path: Path, arc: str) -> int:
             return 0o755
         return 0o644
     return 0o644
+
+
+MACHO_MAGIC = (b"\xcf\xfa\xed\xfe", b"\xce\xfa\xed\xfe",
+               b"\xca\xfe\xba\xbe", b"\xbe\xba\xfe\xca")
+
+
+def _is_macho(path: Path) -> bool:
+    try:
+        with open(path, "rb") as fh:
+            return fh.read(4) in MACHO_MAGIC
+    except OSError:
+        return False
+
+
+def _verify_dylibs(folder: Path) -> None:
+    """Fail the build when a bundled Mach-O needs a @rpath library we did not ship.
+
+    This is the check that catches a half-copied llama.cpp tree: the zip still
+    assembles and unpacks, and only on the user's Mac does launching it explode
+    with "Library not loaded: @rpath/libllama-common.0.dylib".
+    """
+    otool = shutil.which("otool")
+    if not otool or not folder.is_dir():
+        return
+    missing: dict[str, list[str]] = {}
+    for binary in sorted(folder.iterdir()):
+        if not binary.is_file() or not _is_macho(binary):
+            continue
+        out = subprocess.run([otool, "-L", str(binary)],
+                             capture_output=True, text=True)
+        for line in out.stdout.splitlines()[1:]:
+            ref = line.strip().split(" ")[0]
+            if not ref.startswith("@rpath/"):
+                continue
+            if not (folder / ref[len("@rpath/"):]).exists():
+                missing.setdefault(ref, []).append(binary.name)
+    if missing:
+        detail = "; ".join(
+            f"{ref} <- {', '.join(sorted(set(srcs))[:3])}"
+            for ref, srcs in sorted(missing.items()))
+        raise SystemExit(f"incomplete llama.cpp bundle, unresolved @rpath deps: {detail}")
+    log("    every @rpath dependency resolves inside the bundle")
 
 
 # -------------------------------------------------------------------------- main
