@@ -211,6 +211,10 @@ xattr -dr com.apple.quarantine HertaStation.app   # 第一次要繞過隔離屬�
 open HertaStation.app
 ```
 
+macOS 另外有兩個免安裝 Python 的版本：`HertaStation-1.1.0-macos-arm64.dmg` 與
+`HertaStation-1.1.0-macos-arm64-native.zip`（內建直譯器與 llama.cpp，拖進 Applications 就能用）；
+上面那個 `.zip` 則是交給系統 `python3`（3.10+）執行的輕量版。
+
 從原始碼跑（開發用）：
 
 ```bash

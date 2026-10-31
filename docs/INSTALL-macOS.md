@@ -37,14 +37,31 @@ Apple Silicon 的建議：統一記憶體就是上限，`Q4_K_M` / `Q6_K` 這類
 
 ## 3. 安裝與執行
 
+不想自己編的話，release 頁面直接有 `.app`：
+
+| 檔案 | 適用 | 需要什麼 |
+| --- | --- | --- |
+| `HertaStation-1.1.0-macos-arm64.dmg` | Apple Silicon | 拖進 Applications 就能用，內建 Python 與 llama.cpp（Metal） |
+| `HertaStation-1.1.0-macos-arm64-native.zip` | Apple Silicon | 同上，zip 版 |
+| `HertaStation-1.1.0-macos-arm64.zip` | Apple Silicon | 需要系統上的 `python3` 3.10+，llama.cpp 已內建 |
+| `HertaStation-1.1.0-macos-x64.zip` | Intel | 同上，`brew install python@3.12` 最省事 |
+
+```bash
+xattr -dr com.apple.quarantine /Applications/HertaStation.app   # 第一次開啟前
+open /Applications/HertaStation.app
+```
+
+從原始碼自己編（開發用）：
+
 ```bash
 git clone <你的 repo> ~/herta-station && cd ~/herta-station
 
 ./start.sh --check     # 印出 GPU / 統一記憶體 / 路徑
 ./start.sh             # 原生 WKWebView 視窗
 
-# 打包成 .app
-./build.sh             # -> dist/HertaStation.app（已 ad-hoc 簽名）
+# 打包成 .app（vendor/llama.cpp 存在時會一併包進去，含 ad-hoc 簽名）
+python tools/fetch-llama.py --platform macos-arm64
+./build.sh             # -> dist/HertaStation.app
 ./packaging/make-macos-dmg.sh        # -> dist/HertaStation.dmg
 
 open dist/HertaStation.app
