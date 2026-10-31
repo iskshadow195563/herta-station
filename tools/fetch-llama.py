@@ -72,10 +72,22 @@ def extract(archive: Path, dest: Path) -> int:
     else:
         with tarfile.open(archive, "r:gz") as tf:
             for member in tf.getmembers():
-                if not member.isfile():
-                    continue
                 name = os.path.basename(member.name)
                 if not name:
+                    continue
+                if member.issym() or member.islnk():
+                    # llama.cpp ships libfoo.dylib -> libfoo.0.dylib -> libfoo.0.27.0.dylib
+                    # as symlinks. Dropping them looks harmless and is not: every
+                    # bundled binary then dies with
+                    # "Library not loaded: @rpath/libllama-common.0.dylib".
+                    link = dest / name
+                    target = member.linkname if member.issym() else os.path.basename(member.linkname)
+                    if link.is_symlink() or link.exists():
+                        link.unlink()
+                    os.symlink(target, link)
+                    count += 1
+                    continue
+                if not member.isfile():
                     continue
                 src = tf.extractfile(member)
                 if src is None:
