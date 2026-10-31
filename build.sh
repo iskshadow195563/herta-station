@@ -67,12 +67,13 @@ PYI="$VENV/bin/pyinstaller"
 
 if [ "$GUI" = "none" ]; then
   # Ship without a webview backend: the app falls back to the system browser.
+  # --add-data/--paths are resolved against --specpath, so they must be absolute.
   ARGS=(--noconfirm --clean --name HertaStation
-        --add-data "ui.html$SEP." --paths .
+        --add-data "$PWD/ui.html$SEP." --paths "$PWD"
         --distpath dist --workpath build/work --specpath build)
 else
   ARGS=(--noconfirm --clean --windowed --name HertaStation
-        --add-data "ui.html$SEP." --paths .
+        --add-data "$PWD/ui.html$SEP." --paths "$PWD"
         --distpath dist --workpath build/work --specpath build
         --collect-all webview)
 fi
@@ -83,16 +84,48 @@ if [ "$OS" = "Darwin" ]; then
     ARGS+=(--target-arch universal2)
   fi
   ARGS+=(--osx-bundle-identifier com.herta.station)
-  [ -f assets/herta.icns ] && ARGS+=(--icon assets/herta.icns)
+  [ -f assets/herta.icns ] && ARGS+=(--icon "$PWD/assets/herta.icns")
 else
-  [ -f assets/herta.png ] && ARGS+=(--icon assets/herta.png)
+  [ -f assets/herta.png ] && ARGS+=(--icon "$PWD/assets/herta.png")
 fi
 
 echo "==> building (gui=$GUI)"
 "$PYI" "${ARGS[@]}" herta_app.py
 
 if [ "$OS" = "Darwin" ]; then
-  codesign --force --deep --sign - dist/HertaStation.app >/dev/null 2>&1 || true
+  APP="dist/HertaStation.app"
+  PLIST="$APP/Contents/Info.plist"
+  if [ -f "$PLIST" ]; then
+    # PyInstaller stamps 0.0.0 into every bundle; keep the app version honest.
+    V="$(tr -d '[:space:]' < VERSION 2>/dev/null || true)"
+    V="${V:-1.0.0}"
+    for key in CFBundleShortVersionString CFBundleVersion; do
+      /usr/libexec/PlistBuddy -c "Set :$key $V" "$PLIST" 2>/dev/null \
+        || /usr/libexec/PlistBuddy -c "Add :$key string $V" "$PLIST"
+    done
+    /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName Herta Station" "$PLIST" 2>/dev/null || true
+  fi
+  # A shipped .app must carry its own llama.cpp (tools/make_dist.py does the same
+  # for the zipapp flavour). Symlinks are kept on purpose: ditto and Finder
+  # preserve them, and they are what @rpath/lib*.0.dylib resolves through.
+  case "$(uname -m)" in
+    arm64) SLUG="macos-arm64" ;;
+    *)     SLUG="macos-x64" ;;
+  esac
+  BASE="vendor/llama.cpp/$SLUG"
+  if [ -d "$BASE" ]; then
+    SRC="$BASE"
+    if [ -n "$(find "$BASE" -maxdepth 1 -type d ! -path "$BASE" -print -quit)" ]; then
+      SRC="$(find "$BASE" -maxdepth 1 -type d ! -path "$BASE" | sort | tail -1)"
+    fi
+    rm -rf "$APP/Contents/Resources/llama.cpp"
+    cp -R "$SRC/." "$APP/Contents/Resources/llama.cpp"
+    chmod 755 "$APP/Contents/Resources/llama.cpp/llama-server" 2>/dev/null || true
+    echo "==> bundled llama.cpp from $SRC"
+  else
+    echo "==> no $BASE; the app will look for llama-server on the system"
+  fi
+  codesign --force --deep --sign - "$APP" >/dev/null 2>&1 || true
   echo "built: dist/HertaStation.app"
   echo "run  : open dist/HertaStation.app     (or: dist/HertaStation.app/Contents/MacOS/HertaStation)"
 else
