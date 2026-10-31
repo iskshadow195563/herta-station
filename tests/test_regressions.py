@@ -115,7 +115,12 @@ class ProcessTests(unittest.TestCase):
     def test_port_lookup_uses_current_port_and_local_endpoint(self):
         output = (" TCP 127.0.0.1:4000 127.0.0.1:5001 LISTENING 11\n"
                   " TCP [::]:5001 [::]:0 LISTENING 22\n")
-        with patch.object(server, "PORT", 5001), patch.object(server, "_run", return_value=output):
+        # The fixture is netstat output, so pin the Windows branch: without this
+        # the lookup follows the host platform's path (lsof on macOS) and the
+        # test fails on every developer Mac and in the macOS CI jobs.
+        with patch.object(server, "PORT", 5001), patch.object(server, "_run", return_value=output), \
+                patch.object(server.hostos, "IS_WIN", True), \
+                patch.object(server.hostos, "IS_LINUX", False):
             self.assertEqual(server._port_pid(), 22)
 
     def test_stale_pid_file_does_not_override_live_listener(self):
